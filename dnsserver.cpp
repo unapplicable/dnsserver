@@ -807,11 +807,12 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 	{
 		char buf[0xFFFF] = {0};
 		char hostname[max(NI_MAXHOST, 1000)];
-		fromlen = sizeof(from);
 
 		usleep(1000 * 100);
 		for (int i = 0; i < numSockets; ++i)
 		{
+			fromlen = sizeof(from);
+			memset(from, 0, fromlen);
 			int numrecv = recvfrom(s[i], (char *)&buf, sizeof(buf), 0, (sockaddr *)&from, &fromlen);
 			if (numrecv == SOCKET_ERROR || numrecv == 0)
 			{
