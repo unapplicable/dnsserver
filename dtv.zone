@@ -1,0 +1,3 @@
+$ORIGIN	dtv
+web		IN	A	10.0.16.7
+web2		IN	A	10.0.16.7

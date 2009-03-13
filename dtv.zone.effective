@@ -1,0 +1,1 @@
+sed -e s/PUBLICIP/80.235.33.209/g dtv.zone
