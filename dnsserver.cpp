@@ -59,8 +59,8 @@ char *hextab = "0123456789ABCDEF";
 unsigned char hex2bin(const string& hex)
 {
 	unsigned char res = 0;
-	res |= static_cast<unsigned char>((strchr(hextab, hex[0]) - hextab)) << 4;
-	res |= static_cast<unsigned char>((strchr(hextab, hex[1]) - hextab));
+	res |= static_cast<unsigned char>((strchr(hextab, toupper(hex[0])) - hextab)) << 4;
+	res |= static_cast<unsigned char>((strchr(hextab, toupper(hex[1])) - hextab));
 	return res;
 }
 
