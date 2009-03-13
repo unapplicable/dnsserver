@@ -12,7 +12,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <unistd.h>
+#define TRUE 1
 
 using namespace std;
 
@@ -54,7 +56,7 @@ ostream& operator <<(ostream& os, const RCode rc)
 	SCC(REFUSED); default: return os << "unk(" << std::hex << (int)rc << ")"; }
 }
 
-char *hextab = "0123456789ABCDEF";
+char *hextab = (char*)"0123456789ABCDEF";
 
 unsigned char hex2bin(const string& hex)
 {
@@ -739,42 +741,61 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 	delete msgtest;
 }
 
-
-void serverloop(char *addr, char *port, vector<Zone *>& zones)
+int setnonblock(int sockfd, int nonblock)
 {
-	SOCKET s;
+	int flags;
+	flags = fcntl(sockfd, F_GETFL, 0);
+	if (TRUE == nonblock)
+		return fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+	else
+		return fcntl(sockfd, F_SETFL, flags & (~O_NONBLOCK));
+}
+
+void serverloop(char **vaddr, vector<Zone *>& zones)
+{
+	SOCKET s[100];
 	ADDRINFO hints, *addrinfo, *addrinfoi;
 	SOCKADDR_STORAGE from;
 	socklen_t fromlen;
+	int numSockets = 0;
+	int port = 53;
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = PF_UNSPEC;
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_flags =  AI_PASSIVE;
 
-	if (getaddrinfo(addr, port, &hints, &addrinfo))
+	for (numSockets = 0; vaddr[numSockets] != 0; ++numSockets)
 	{
-		fprintf(stderr, "getaddrinfo failed\n");
-		return;
+		char* addr = vaddr[numSockets];
+		fprintf(stderr, "binding to %s:%d\n", addr, port);
+
+		if (getaddrinfo(addr, "53", &hints, &addrinfo))
+		{
+			fprintf(stderr, "getaddrinfo failed for %s\n", addr);
+			return;
+		}
+
+		for (addrinfoi = addrinfo; 
+			addrinfoi && addrinfoi->ai_family != PF_INET && addrinfoi->ai_family != PF_INET6;
+			addrinfoi = addrinfoi->ai_next);
+
+		if ((s[numSockets] = socket(addrinfoi->ai_family, addrinfoi->ai_socktype, addrinfoi->ai_protocol)) == INVALID_SOCKET)
+		{
+			fprintf(stderr, "socket failed %s\n", addr);
+			return;
+		}
+
+		setnonblock(s[numSockets], 1);
+
+		if (bind(s[numSockets], addrinfoi->ai_addr, addrinfoi->ai_addrlen) == SOCKET_ERROR)
+		{
+			fprintf(stderr, "bind failed %s:%d\n", addr, port);
+			return;
+		}
+
+		freeaddrinfo(addrinfo);
 	}
-
-	for (addrinfoi = addrinfo; 
-		addrinfoi && addrinfoi->ai_family != PF_INET && addrinfoi->ai_family != PF_INET6;
-		addrinfoi = addrinfoi->ai_next);
-
-	if ((s = socket(addrinfoi->ai_family, addrinfoi->ai_socktype, addrinfoi->ai_protocol)) == INVALID_SOCKET)
-	{
-		fprintf(stderr, "socket failed\n");
-		return;
-	}
-
-	if (bind(s, addrinfoi->ai_addr, addrinfoi->ai_addrlen) == SOCKET_ERROR)
-	{
-		fprintf(stderr, "bind failed\n");
-		return;
-	}
-
-	freeaddrinfo(addrinfo);
 
 	setreuid(1000, 1000);
 	setregid(1000, 1000);
@@ -785,21 +806,30 @@ void serverloop(char *addr, char *port, vector<Zone *>& zones)
 	while (true)
 	{
 		char buf[0xFFFF] = {0};
-		char hostname[NI_MAXHOST];
+		char hostname[max(NI_MAXHOST, 1000)];
 		fromlen = sizeof(from);
 
-		int numrecv = recvfrom(s, (char *)&buf, sizeof(buf), 0, (sockaddr *)&from, &fromlen);
-		if (numrecv == SOCKET_ERROR || numrecv == 0)
+		usleep(1000 * 100);
+		for (int i = 0; i < numSockets; ++i)
 		{
-			int wsaerr = errno;
-			fprintf(stderr, "recvfrom failed %08X %d\n", wsaerr, wsaerr);
-			continue;
+			int numrecv = recvfrom(s[i], (char *)&buf, sizeof(buf), 0, (sockaddr *)&from, &fromlen);
+			if (numrecv == SOCKET_ERROR || numrecv == 0)
+			{
+				int wsaerr = errno;
+				if (wsaerr == EAGAIN)
+				{
+				} else
+				{
+					fprintf(stderr, "recvfrom failed %08X %d\n", wsaerr, wsaerr);
+				}
+				continue;
+			}
+
+			if (getnameinfo((sockaddr *)&from, fromlen, hostname, sizeof(hostname), NULL, 0, NI_NUMERICHOST))
+				strcpy(hostname, "unknown");
+
+			handle(s[i], buf, numrecv, hostname, &from, fromlen, zones);
 		}
-
-		if (getnameinfo((sockaddr *)&from, fromlen, hostname, sizeof(hostname), NULL, 0, NI_NUMERICHOST))
-			strcpy(hostname, "unknown");
-
-		handle(s, buf, numrecv, hostname, &from, fromlen, zones);
 	}
 }
 
@@ -976,7 +1006,7 @@ int main(int argc, char* argv[])
 
 	ifstream a;
 	ifstream zonefile;
-	zonefile.open(argv[3]);
+	zonefile.open(argv[1]);
 	do
 	{
 		char line[4096];
@@ -993,7 +1023,7 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 
-	serverloop(argv[1], argv[2], zones);
+	serverloop(&argv[2], zones);
 	return 0;
 }
 
