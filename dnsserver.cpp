@@ -587,7 +587,7 @@ void dump(char *buf, int len)
 
 typedef int SOCKET;
 typedef struct hostent HOSTENT;
-typedef struct sockaddr_in SOCKADDR_STORAGE;
+typedef struct sockaddr_in6 SOCKADDR_STORAGE;
 typedef struct addrinfo ADDRINFO;
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1
@@ -755,8 +755,6 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 {
 	SOCKET s[100];
 	ADDRINFO hints, *addrinfo, *addrinfoi;
-	SOCKADDR_STORAGE from;
-	socklen_t fromlen;
 	int numSockets = 0;
 	int port = 53;
 
@@ -806,13 +804,33 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 	while (true)
 	{
 		char buf[0xFFFF] = {0};
-		char hostname[max(NI_MAXHOST, 1000)];
+		char hostname[NI_MAXHOST] = {0x41};
+		sockaddr_in6 from;
+		socklen_t fromlen;
+		fd_set rdfds;
+		int maxfd = 0;
 
-		usleep(1000 * 100);
+		FD_ZERO(&rdfds);
 		for (int i = 0; i < numSockets; ++i)
 		{
+			FD_SET(s[i], &rdfds);
+			maxfd = max(maxfd, s[i]);
+		}
+		
+		if (0 >= select(maxfd + 1, &rdfds, NULL, NULL, NULL))
+		{
+			continue;
+		}
+
+		for (int i = 0; i < numSockets; ++i)
+		{
+			if (!FD_ISSET(s[i], &rdfds))
+			{
+				continue;
+			}
+
 			fromlen = sizeof(from);
-			memset(from, 0, fromlen);
+			memset(&from, 0, fromlen);
 			int numrecv = recvfrom(s[i], (char *)&buf, sizeof(buf), 0, (sockaddr *)&from, &fromlen);
 			if (numrecv == SOCKET_ERROR || numrecv == 0)
 			{
