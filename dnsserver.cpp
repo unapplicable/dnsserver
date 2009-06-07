@@ -6,6 +6,8 @@
 #include <fstream>
 #include <algorithm>
 #include <ctime>
+#include <cstring>
+#ifdef LINUX
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -15,12 +17,27 @@
 #include <fcntl.h>
 #include <unistd.h>
 #define TRUE 1
+typedef int SOCKET;
+typedef struct hostent HOSTENT;
+typedef struct sockaddr_in6 SOCKADDR_STORAGE;
+typedef struct addrinfo ADDRINFO;
+#define INVALID_SOCKET -1
+#define SOCKET_ERROR -1
+#endif
+#ifdef WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+typedef struct addrinfo ADDRINFO;
+#pragma comment(lib, "ws2_32.lib")
+#endif
 
 using namespace std;
 
 #define SC(x) case x: return os << #x
 #define SC2(x, y) case x: return os << #y;
 #define SCC(x) case CODE##x: return os << #x;
+
+#define MATCHSTRING(haystack, needle, match) if (haystack == #needle) return match;
 
 enum RRType { RRUNDEF = 0, A = 1, NS, MD, MF, CNAME, SOA, MB, MG, MR,RRNULL,WKS, PTR, HINFO, MINFO, MX, TXT,AAAA = 28, CERT = 37, AXFR = 252, MAILB = 253, MAILA = 254, TYPESTAR = 255 };
 
@@ -29,6 +46,29 @@ ostream& operator <<(ostream& os, const RRType rrt)
 	switch (rrt) { SC(A); SC(NS); SC(MD); SC(CNAME); SC(SOA); SC(MB); SC(MR); SC2(RRNULL, NULL); SC(WKS);
 		SC(PTR); SC(MINFO); SC(MX); SC(TXT); SC(AAAA); SC(CERT); SC(AXFR); SC(MAILB); SC(MAILA); SC2(TYPESTAR, STAR);
 		default: return os << "unk(" << std::hex << (unsigned short)rrt << ")"; }
+}
+
+RRType RRTypeFromString(const std::string& srrtype)
+{
+	MATCHSTRING(srrtype, A, A);
+	MATCHSTRING(srrtype, NS, NS);
+	MATCHSTRING(srrtype, MD, MD);
+	MATCHSTRING(srrtype, CNAME, CNAME);
+	MATCHSTRING(srrtype, SOA, SOA);
+	MATCHSTRING(srrtype, MB, MB);
+	MATCHSTRING(srrtype, RRNULL, RRUNDEF);
+	MATCHSTRING(srrtype, WKS, WKS);
+	MATCHSTRING(srrtype, PTR, PTR);
+	MATCHSTRING(srrtype, MINFO, MINFO);
+	MATCHSTRING(srrtype, MX, MX);
+	MATCHSTRING(srrtype, TXT, TXT);
+	MATCHSTRING(srrtype, AAAA, AAAA);
+	MATCHSTRING(srrtype, CERT, CERT);
+	MATCHSTRING(srrtype, AXFR, AXFR);
+	MATCHSTRING(srrtype, MAILB, MAILB);
+	MATCHSTRING(srrtype, MAILA, MAILA);
+	MATCHSTRING(srrtype, STAR, TYPESTAR);
+	return RRUNDEF;
 }
 
 enum RRClass { CLASSUNDEF = 0, CLASSIN = 1, CS = 2, CH = 3, HS = 4, CLASSSTAR = 255 };
@@ -126,9 +166,32 @@ public:
 	unsigned short rdlen;
 	string rdata;
 
+	static RR* createByType(RRType type);
 	bool unpack(char *data, unsigned int len, unsigned int& offset, bool isQuery);
 	void pack(char *data, unsigned int len, unsigned int& offset);
-	~RR();
+	virtual void packContents(char* data, unsigned int len, unsigned int& offset);
+	virtual ostream& dumpContents(ostream& os) const;
+	virtual void fromString(const std::vector<std::string>& v);
+	virtual void fromStringContents(const std::vector<std::string>& v);
+	virtual RR* clone() const { return new RR(*this); }
+	virtual ~RR();
+};
+
+class RRSoa : public RR
+{
+	public:
+		string ns;
+		string mail;
+		unsigned long serial;
+		unsigned long refresh;
+		unsigned long retry;
+		unsigned long expire;
+		unsigned long minttl;
+		virtual void packContents(char* data, unsigned int len, unsigned int& offset);
+		virtual ostream& dumpContents(ostream& os) const;
+		virtual void fromStringContents(const std::vector<std::string>& v);
+		virtual RR* clone() const { return new RRSoa(*this); }
+		virtual ~RRSoa();
 };
 
 struct Subnet
@@ -177,6 +240,58 @@ class Zone
 		vector<RR *> rrs;
 };
 
+ostream& RRSoa::dumpContents(ostream& os) const
+{
+	os << "ns [" << ns << "] ";
+	os << "mail [" << mail << "] ";
+	os << "serial [" << serial << "] ";
+	os << "refresh [" << refresh << "] ";
+	os << "retry [" << retry << "] ";
+	os << "expire [" << expire << "] ";
+	os << "minttl [" << minttl << "] ";
+	return os;
+};
+
+ostream& RR::dumpContents(ostream& os) const
+{
+	switch (type)
+	{
+		case CNAME:
+		case PTR:
+		case TXT:
+		{
+			os << rdata;
+			break;
+		}
+
+		case MX:
+		{
+			
+			os << std::dec << 10 << " " << rdata;
+			break;
+		}
+
+		case A:
+		{
+			os << bin2a(rdata);
+			break;
+		}
+
+		case AAAA:
+		{
+			os << bin2aaaa(rdata);
+			break;
+		}
+
+		default:
+			for (unsigned int i = 0; i < rdata.length(); ++i)
+				os << std::hex << (unsigned char)rdata[i] << " ";
+			break;
+	}
+
+	return os;	
+}
+
 ostream& operator <<(ostream& os, const RR& r)
 {
 	os << r.rrclass << " " << r.type << " " << r.name;
@@ -185,40 +300,7 @@ ostream& operator <<(ostream& os, const RR& r)
 
 	os << " = ";
 
-	switch (r.type)
-	{
-		case CNAME:
-		case PTR:
-		case TXT:
-		{
-			os << r.rdata;
-			break;
-		}
-
-		case MX:
-		{
-			
-			os << std::dec << 10 << " " << r.rdata;			
-			break;
-		}
-
-		case A:
-		{
-			os << bin2a(r.rdata);
-			break;
-		}
-
-		case AAAA:
-		{
-			os << bin2aaaa(r.rdata);
-			break;
-		}
-
-		default:
-			for (int i = 0; i < r.rdata.length(); ++i)
-				os << std::hex << (unsigned char)r.rdata[i] << " ";
-			break;
-	}
+	r.dumpContents(os);
 
 	return os << " (ttl:" << r.ttl << ")";
 }
@@ -278,7 +360,7 @@ void packName(char *data, unsigned int len, unsigned int& offset, string name, b
 	string part;
 	do
 	{
-		size_t dot;
+		std::string::size_type dot;
 		if ((dot = name.find('.')) != -1)
 		{
 			part = name.substr(0, dot);
@@ -303,26 +385,113 @@ RR::~RR()
 {
 }
 
-void RR::pack(char *data, unsigned int len, unsigned int& offset)
+RRSoa::~RRSoa()
 {
-	packName(data, len, offset, name);
+}
 
-	(unsigned short&)data[offset] = htons(type);
-	offset += 2;
+RR* RR::createByType(RRType type)
+{
+	switch (type)
+	{
+		case SOA:
+			return new RRSoa();
 
-	(unsigned short&)data[offset] = htons(rrclass);
-	offset += 2;
+		default:
+			return new RR();
+	}
+}
 
-	if (query)
-		return;
+void RR::fromString(const std::vector<std::string>& tokens)
+{
+	name = tokens[0];
 
-	(unsigned long&)data[offset] = htonl(ttl);
+	if (tokens[1] == "IN")
+		rrclass = CLASSIN;
+	else
+	if (tokens[1] == "CH")
+		rrclass = CH;
+	else
+	if (tokens[1] == "*")
+		rrclass = CLASSSTAR;
+	else
+		rrclass = CLASSUNDEF;
+
+	type = RRTypeFromString(tokens[2]);
+
+	fromStringContents(std::vector<std::string>(tokens.begin() + 3, tokens.end()));
+}
+
+void RRSoa::fromStringContents(const std::vector<std::string>& tokens)
+{
+	ns = tokens[0];
+	mail = tokens[1];
+	serial = atoi(tokens[2].c_str());
+	refresh = atoi(tokens[3].c_str());
+	retry = atoi(tokens[4].c_str());
+	expire = atoi(tokens[5].c_str());
+	minttl = atoi(tokens[6].c_str());
+}
+
+void RR::fromStringContents(const std::vector<std::string>& tokens)
+{
+	switch (type)
+	{
+		case MX:
+			rdata = tokens[1];
+			break;
+
+		case PTR:
+		case CNAME:
+		case NS:
+			rdata = tokens[0];
+			break;
+
+		case AAAA:
+			rdata = aaaa2bin(tokens[0]);
+			break;
+		
+		case A:
+			rdata = a2bin(tokens[0]);
+			break;
+
+		case TXT:
+			for (unsigned int i = 0; i < tokens.size(); ++i)
+				rdata += (i != 3 ? " " : "" )+ tokens[i];
+			break;
+
+		case CERT:
+			rdata.append("\x01\x00\x00\x00\x00", 5);
+			for (unsigned int i = 0; i < tokens[0].length(); i += 2)
+				rdata += hex2bin(tokens[0].substr(i, 2));
+			break;
+
+		default:
+			break;
+	}
+}
+
+void RRSoa::packContents(char* data, unsigned int len, unsigned int& offset)
+{
+	unsigned int oldoffset = offset - 2;
+	packName(data, len, offset, ns); // ns
+	packName(data, len, offset, mail); // mail
+	(unsigned long&)data[offset] = htonl(serial); // serial
+	offset += 4;
+	(unsigned long&)data[offset] = htonl(refresh); // refresh
+	offset += 4;
+	(unsigned long&)data[offset] = htonl(retry); // retry
+	offset += 4;
+	(unsigned long&)data[offset] = htonl(expire); // expire
+	offset += 4;
+	(unsigned long&)data[offset] = htonl(minttl); // minttl
 	offset += 4;
 
-	rdlen = rdata.length();
-	(unsigned short&)data[offset] = htons(rdlen);
-	offset += 2;
+	unsigned int packedrdlen = offset - (oldoffset + 2);
+	(unsigned short&)data[oldoffset] = htons(packedrdlen);	
+}
 
+void RR::packContents(char* data, unsigned int len, unsigned int& offset)
+{
 	switch (type)
 	{
 		case CNAME:
@@ -360,6 +529,29 @@ void RR::pack(char *data, unsigned int len, unsigned int& offset)
 			offset += rdlen;
 			break;
 	}
+}
+
+void RR::pack(char *data, unsigned int len, unsigned int& offset)
+{
+	packName(data, len, offset, name);
+
+	(unsigned short&)data[offset] = htons(type);
+	offset += 2;
+
+	(unsigned short&)data[offset] = htons(rrclass);
+	offset += 2;
+
+	if (query)
+		return;
+
+	(unsigned long&)data[offset] = htonl(ttl);
+	offset += 4;
+
+	rdlen = static_cast<unsigned short>(rdata.length());
+	(unsigned short&)data[offset] = htons(rdlen);
+	offset += 2;
+
+	packContents(data, len, offset);
 }
 
 string unpackName(char *data, unsigned int len, unsigned int& offset)
@@ -551,16 +743,16 @@ void Message::pack(char *data, unsigned int len, unsigned int& offset) const
 	(unsigned short &)data[offset] = htons(flags);
 	offset += 2;
 
-	(unsigned short &)data[offset] = htons(qd.size());
+	(unsigned short &)data[offset] = htons(static_cast<unsigned short>(qd.size()));
 	offset += 2;
 
-	(unsigned short &)data[offset] = htons(an.size());
+	(unsigned short &)data[offset] = htons(static_cast<unsigned short>(an.size()));
 	offset += 2;
 
-	(unsigned short &)data[offset] = htons(ns.size());
+	(unsigned short &)data[offset] = htons(static_cast<unsigned short>(ns.size()));
 	offset += 2;
 
-	(unsigned short &)data[offset] = htons(ar.size());
+	(unsigned short &)data[offset] = htons(static_cast<unsigned short>(ar.size()));
 	offset += 2;
 
 	for (int rrtype = 0; rrtype < 4; rrtype++)
@@ -585,12 +777,6 @@ void dump(char *buf, int len)
 		printf("\n");
 }
 
-typedef int SOCKET;
-typedef struct hostent HOSTENT;
-typedef struct sockaddr_in6 SOCKADDR_STORAGE;
-typedef struct addrinfo ADDRINFO;
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR -1
 
 void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, int addrlen, vector<Zone *>& zones)
 {
@@ -636,7 +822,7 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 				const Zone *z = *ziter;
 
 				string qrrlower(qrr->name), zlower(z->name);
-				std::transform(qrrlower.begin(), qrrlower.end(), qrrlower.begin(), (int (*)(int))std::tolower);
+				std::transform(qrrlower.begin(), qrrlower.end(), qrrlower.begin(), (int (*)(int))tolower);
 				std::transform(zlower.begin(), zlower.end(), zlower.begin(), (int (*)(int))tolower);
 
 				string::size_type zpos = qrrlower.rfind(zlower);
@@ -668,7 +854,7 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 				reply = new Message();
 				reply->id = msgtest->id;
 				reply->opcode = QUERY;
-				reply->qd.push_back(new RR(*qrr));
+				reply->qd.push_back(qrr->clone());
 				reply->truncation = false;
 				reply->query = false;
 				reply->authoritative = true;
@@ -688,7 +874,7 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 						(qrr->type == TYPESTAR)
 						)
 					{
-						RR *arr = new RR(*rr);
+						RR *arr = rr->clone();
 						arr->query = false;												
 						
 						arr->ttl = 10 * 60; // 10 minutes
@@ -708,7 +894,7 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 				reply = new Message();
 				reply->id = msgtest->id;
 				reply->opcode = QUERY;
-				reply->qd.push_back(new RR(*qrr));
+				reply->qd.push_back(qrr->clone());
 				reply->truncation = false;
 				reply->query = false;
 				reply->authoritative = true;
@@ -741,14 +927,30 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 	delete msgtest;
 }
 
-int setnonblock(int sockfd, int nonblock)
+int setnonblock(SOCKET sockfd, int nonblock)
 {
+#ifdef LINUX
 	int flags;
 	flags = fcntl(sockfd, F_GETFL, 0);
 	if (TRUE == nonblock)
 		return fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
 	else
 		return fcntl(sockfd, F_SETFL, flags & (~O_NONBLOCK));
+#else
+	u_long mode = nonblock;
+	return ioctlsocket(sockfd, FIONBIO, &mode);
+#endif
+}
+
+void daemonize()
+{
+#ifdef LINUX
+	setreuid(1000, 1000);
+	setregid(1000, 1000);
+
+	if (fork() != 0)
+		exit(1);
+#endif
 }
 
 void serverloop(char **vaddr, vector<Zone *>& zones)
@@ -786,7 +988,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 
 		setnonblock(s[numSockets], 1);
 
-		if (bind(s[numSockets], addrinfoi->ai_addr, addrinfoi->ai_addrlen) == SOCKET_ERROR)
+		if (bind(s[numSockets], addrinfoi->ai_addr, static_cast<int>(addrinfoi->ai_addrlen)) == SOCKET_ERROR)
 		{
 			fprintf(stderr, "bind failed %s:%d\n", addr, port);
 			return;
@@ -795,12 +997,8 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 		freeaddrinfo(addrinfo);
 	}
 
-	setreuid(1000, 1000);
-	setregid(1000, 1000);
-
-	if (fork() != 0)
-		exit(1);
-
+	daemonize();
+	
 	while (true)
 	{
 		char buf[0xFFFF] = {0};
@@ -808,7 +1006,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 		sockaddr_in6 from;
 		socklen_t fromlen;
 		fd_set rdfds;
-		int maxfd = 0;
+		SOCKET maxfd = 0;
 
 		FD_ZERO(&rdfds);
 		for (int i = 0; i < numSockets; ++i)
@@ -817,7 +1015,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 			maxfd = max(maxfd, s[i]);
 		}
 		
-		if (0 >= select(maxfd + 1, &rdfds, NULL, NULL, NULL))
+		if (0 >= select(static_cast<int>(maxfd + 1), &rdfds, NULL, NULL, NULL))
 		{
 			continue;
 		}
@@ -834,8 +1032,14 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 			int numrecv = recvfrom(s[i], (char *)&buf, sizeof(buf), 0, (sockaddr *)&from, &fromlen);
 			if (numrecv == SOCKET_ERROR || numrecv == 0)
 			{
+#ifdef LINUX
 				int wsaerr = errno;
 				if (wsaerr == EAGAIN)
+#else
+				int wsaerr = WSAGetLastError();
+				if (wsaerr == WSAEWOULDBLOCK)
+#endif
+				
 				{
 				} else
 				{
@@ -847,7 +1051,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 			if (getnameinfo((sockaddr *)&from, fromlen, hostname, sizeof(hostname), NULL, 0, NI_NUMERICHOST))
 				strcpy(hostname, "unknown");
 
-			handle(s[i], buf, numrecv, hostname, &from, fromlen, zones);
+			handle(s[i], buf, numrecv, hostname, reinterpret_cast<SOCKADDR_STORAGE*>(&from), fromlen, zones);
 		}
 	}
 }
@@ -897,7 +1101,7 @@ bool loadZones(const t_data& data, t_zones& zones)
 		{
 			Zone* acl = new Zone();
 			acl->name = parent->name;
-			for (int i = 1; i < tokens.size(); ++i)
+			for (std::string::size_type i = 1; i < tokens.size(); ++i)
 			{
 				AclEntry e = {Subnet(tokens[i]), acl};
 				parent->acl.push_back(e);
@@ -907,97 +1111,14 @@ bool loadZones(const t_data& data, t_zones& zones)
 			continue;
 		}
 
-		RRClass rrclass;
-		if (tokens[1] == "IN")
-			rrclass = CLASSIN;
-		else
-		if (tokens[1] == "CH")
-			rrclass = CH;
-		else
-		if (tokens[1] == "*")
-			rrclass = CLASSSTAR;
-		else
-			rrclass = CLASSUNDEF;
 
-		RRType rrtype;
-		if (tokens[2] == "MX")
-			rrtype = MX;
-		else
-		if (tokens[2] == "A")
-			rrtype = A;
-		else
-		if (tokens[2] == "AAAA")
-			rrtype = AAAA;
-		else
-		if (tokens[2] == "CERT")
-			rrtype = CERT;
-		else
-		if (tokens[2] == "CNAME")
-			rrtype = CNAME;
-		else
-		if (tokens[2] == "NS")
-			rrtype = NS;
-		else
-		if (tokens[2] == "PTR")
-			rrtype = PTR;
-		else
-		if (tokens[2] == "TXT")
-			rrtype = TXT;
-		else
-			rrtype = RRUNDEF;
+		RRType rrtype = RRTypeFromString(tokens[2]);
+		RR* rr = RR::createByType(rrtype);
 
-		RR* rr = NULL;
-		switch (rrtype)
-		{
-			case MX:
-				rr = new RR();
-				rr->rdata = tokens[4];
-				break;
-
-			case PTR:
-			case CNAME:
-			case NS:
-				rr = new RR();
-				rr->rdata = tokens[3];
-				break;
-		
-			case AAAA:
-				rr = new RR();
-				rr->rdata = aaaa2bin(tokens[3]);
-				break;
-			
-			case A:
-				rr = new RR();
-				rr->rdata = a2bin(tokens[3]);
-				break;
-
-			case TXT:
-				rr = new RR();
-				for (int i = 3; i < tokens.size(); ++i)
-					rr->rdata += (i != 3 ? " " : "" )+ tokens[i];
-				break;
-
-			case CERT:
-				rr = new RR();
-				rr->rdata.append("\x01\x00\x00\x00\x00", 5);
-				for (int i = 0; i < tokens[3].length(); i += 2)
-					rr->rdata += hex2bin(tokens[3].substr(i, 2));
-				break;
-
-			default:
-				break;
-		}
-
-		if (rr != NULL)
-		{
-			rr->rrclass = rrclass;
-			rr->type = rrtype;
-			rr->name = tokens[0];
-			if (tokens[0][tokens[0].length() - 1] != '.')
-				rr->name = tokens[0] + "." + z->name + ".";
-			else
-				rr->name = tokens[0];
-		}
+		// append name of zone when missing terminating .
+		if (tokens[0][tokens[0].length() - 1] != '.')
+			tokens[0] += "." + z->name + ".";
+		rr->fromString(tokens);
 
 		if (rr != NULL && z == NULL)
 			return false;
