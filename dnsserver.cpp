@@ -33,6 +33,7 @@ typedef struct addrinfo ADDRINFO;
 
 using namespace std;
 
+std::string VERSION("$Id$");
 #define SC(x) case x: return os << #x
 #define SC2(x, y) case x: return os << #y;
 #define SCC(x) case CODE##x: return os << #x;
@@ -1143,6 +1144,8 @@ int main(int argc, char* argv[])
 {
 	vector<Zone *> zones;
 	vector<string> zonedata;
+
+	std::cout << "dnsserver version " << VERSION << std::endl;
 
 	ifstream a;
 	ifstream zonefile;
