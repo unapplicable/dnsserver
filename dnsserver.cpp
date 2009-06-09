@@ -16,7 +16,7 @@ using namespace std;
 #include "rr.h"
 #include "zoneFileLoader.h"
 
-std::string VERSION("$Id$");
+std::string VERSION("$Id$"); 
 
 
 
