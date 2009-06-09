@@ -7,6 +7,9 @@
 #include <fstream>
 #include <sstream>
 
+unsigned char hex2bin(const std::string& hex);
+std::string bin2hex(unsigned char bin);
+
 #define SC(x) case x: return #x
 #define SC2(x, y) case x: return #y;
 #define MATCHSTRING(haystack, needle, match) if (haystack == #needle) return match;
@@ -34,7 +37,7 @@ public:
 	virtual void fromString(const std::vector<std::string>& v);
 	virtual void fromStringContents(const std::vector<std::string>& v);
 	virtual RR* clone() const { return new RR(*this); }
-	virtual ~RR();
+	virtual ~RR() {};
 
 	
 	static RRType RRTypeFromString(const std::string& srrtype)

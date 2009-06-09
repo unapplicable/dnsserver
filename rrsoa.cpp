@@ -43,7 +43,3 @@ void RRSoa::packContents(char* data, unsigned int len, unsigned int& offset)
 	unsigned int packedrdlen = offset - (oldoffset + 2);
 	(unsigned short&)data[oldoffset] = htons(packedrdlen);	
 }
-
-RRSoa::~RRSoa()
-{
-};

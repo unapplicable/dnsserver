@@ -21,7 +21,7 @@ class RRSoa : public RR
 		virtual std::ostream& dumpContents(std::ostream& os) const;
 		virtual void fromStringContents(const std::vector<std::string>& v);
 		virtual RR* clone() const { return new RRSoa(*this); }
-		virtual ~RRSoa();
+		virtual ~RRSoa() {};
 };
 
 #endif

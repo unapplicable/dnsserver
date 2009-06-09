@@ -182,6 +182,50 @@
 				>
 			</File>
 			<File
+				RelativePath=".\message.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rr.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rra.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rraaaa.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rrcert.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rrcname.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rrmx.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rrns.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rrptr.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rrsoa.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rrtxt.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\stdafx.cpp"
 				>
 				<FileConfiguration
@@ -201,6 +245,10 @@
 					/>
 				</FileConfiguration>
 			</File>
+			<File
+				RelativePath=".\zoneFileLoader.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -208,7 +256,63 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
+				RelativePath=".\message.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rr.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rra.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rraaaa.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rrcert.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rrcname.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rrmx.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rrns.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rrptr.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rrsoa.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rrtxt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\socket.h"
+				>
+			</File>
+			<File
 				RelativePath=".\stdafx.h"
+				>
+			</File>
+			<File
+				RelativePath=".\zone.h"
+				>
+			</File>
+			<File
+				RelativePath=".\zoneFileLoader.h"
 				>
 			</File>
 		</Filter>

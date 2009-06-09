@@ -2,8 +2,17 @@
 #include "socket.h"
 
 #include "rrsoa.h"
+#include "rrmx.h"
+#include "rrtxt.h"
+#include "rrptr.h"
+#include "rrcname.h"
+#include "rrns.h"
+#include "rraaaa.h"
+#include "rra.h"
+#include "rrcert.h"
 
 #include <cstring>
+#include <exception>
 
 static char *hextab = (char*)"0123456789ABCDEF";
 
@@ -21,44 +30,6 @@ std::string bin2hex(unsigned char bin)
 	res += hextab[bin >> 4 & 0x0F];
 	res += hextab[bin & 0x0F];
 
-	return res;
-}
-
-std::string bin2aaaa(const std::string& in)
-{
-	std::string res;
-	for (std::string::size_type i = 0; i < in.length(); i += 2)
-	{
-		res.append(bin2hex(in[i]));
-		res.append(bin2hex(in[i + 1]));	
-		res.append(1, ':');
-	}
-
-	return res;
-}
-
-std::string bin2a(const std::string& in)
-{
-	return inet_ntoa(*reinterpret_cast<const in_addr*>(in.c_str()));
-}
-
-std::string aaaa2bin(const std::string& in)
-{
-	std::string res;
-	for (std::string::size_type i = 0; i < in.length(); i += 5)
-	{
-		res.append(1, hex2bin(in.substr(i, 2)));
-		res.append(1, hex2bin(in.substr(i + 2, 2)));
-	}
-	
-	return res;
-}
-
-std::string a2bin(const std::string& in)
-{
-	std::string res;
-	unsigned long a = inet_addr(in.c_str());
-	res.append(reinterpret_cast<char*>(&a), 4);
 	return res;
 }
 
@@ -88,40 +59,8 @@ std::ostream& operator <<(std::ostream& os, const RR& r)
 
 std::ostream& RR::dumpContents(std::ostream& os) const
 {
-	switch (type)
-	{
-		case CNAME:
-		case PTR:
-		case TXT:
-		{
-			os << rdata;
-			break;
-		}
-
-		case MX:
-		{
-			
-			os << std::dec << 10 << " " << rdata;
-			break;
-		}
-
-		case A:
-		{
-			os << bin2a(rdata);
-			break;
-		}
-
-		case AAAA:
-		{
-			os << bin2aaaa(rdata);
-			break;
-		}
-
-		default:
-			for (unsigned int i = 0; i < rdata.length(); ++i)
-				os << std::hex << (unsigned char)rdata[i] << " ";
-			break;
-	}
+	for (unsigned int i = 0; i < rdata.length(); ++i)
+		os << std::hex << (unsigned char)rdata[i] << " ";
 
 	return os;	
 }
@@ -205,7 +144,33 @@ RR* RR::createByType(RRType type)
 		case SOA:
 			return new RRSoa();
 
+		case MX:
+			return new RRMX();
+
+		case TXT:
+			return new RRTXT();
+
+		case PTR:
+			return new RRPTR();
+
+		case CNAME:
+			return new RRCNAME();
+
+		case NS:
+			return new RRNS();
+
+		case AAAA:
+			return new RRAAAA();
+
+		case A:
+			return new RRA();
+
+		case CERT:
+			return new RRCERT();
+
 		default:
+			std::cerr << "tried to create cname of type " << type << std::endl;
+			throw std::exception();
 			return new RR();
 	}
 }
@@ -232,81 +197,13 @@ void RR::fromString(const std::vector<std::string>& tokens)
 
 void RR::fromStringContents(const std::vector<std::string>& tokens)
 {
-	switch (type)
-	{
-		case MX:
-			rdata = tokens[1];
-			break;
-
-		case PTR:
-		case CNAME:
-		case NS:
-			rdata = tokens[0];
-			break;
-
-		case AAAA:
-			rdata = aaaa2bin(tokens[0]);
-			break;
-		
-		case A:
-			rdata = a2bin(tokens[0]);
-			break;
-
-		case TXT:
-			for (unsigned int i = 0; i < tokens.size(); ++i)
-				rdata += (i != 3 ? " " : "" )+ tokens[i];
-			break;
-
-		case CERT:
-			rdata.append("\x01\x00\x00\x00\x00", 5);
-			for (unsigned int i = 0; i < tokens[0].length(); i += 2)
-				rdata += hex2bin(tokens[0].substr(i, 2));
-			break;
-
-		default:
-			break;
-	}
+	throw std::exception();
 }
 
 void RR::packContents(char* data, unsigned int len, unsigned int& offset)
 {
-	switch (type)
-	{
-		case CNAME:
-		case PTR:		
-		{
-			unsigned int oldoffset = offset - 2;
-			packName(data, len, offset, rdata);
-			unsigned int packedrdlen = offset - (oldoffset + 2);
-			(unsigned short&)data[oldoffset] = htons(packedrdlen);
-			break;
-		}
-
-		case TXT:
-		{
-			unsigned int oldoffset = offset - 2;
-			packName(data, len, offset, rdata, false);
-			unsigned int packedrdlen = offset - (oldoffset + 2);
-			(unsigned short&)data[oldoffset] = htons(packedrdlen);
-			break;
-		}
-
-		case MX:
-		{
-			unsigned int oldoffset = offset - 2;
-			(unsigned short&)data[offset] = htons(10);
-			offset += 2;
-			packName(data, len, offset, rdata);
-			unsigned int packedrdlen = offset - (oldoffset + 2);
-			(unsigned short&)data[oldoffset] = htons(packedrdlen);
-			break;
-		}
-
-		default:
-			rdata.copy(&data[offset], rdlen);
-			offset += rdlen;
-			break;
-	}
+	rdata.copy(&data[offset], rdlen);
+	offset += rdlen;
 }
 
 void RR::pack(char *data, unsigned int len, unsigned int& offset)
@@ -379,8 +276,4 @@ bool RR::unpack(char *data, unsigned int len, unsigned int& offset, bool isQuery
 	
 	offset += rdlen;
 	return true;
-}
-
-RR::~RR()
-{
 }

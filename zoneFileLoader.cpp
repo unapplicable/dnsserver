@@ -13,7 +13,8 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 		std::string line = *di;
 		
 		std::string::size_type cmtpos;
-		if ((cmtpos = line.find(';')) != std::string::npos)
+		if ((cmtpos = line.find(';')) != std::string::npos ||
+			(cmtpos = line.find('#')) != std::string::npos)
 			line.erase(cmtpos);
 		// tokenize
 		std::vector<std::string> tokens;
@@ -55,22 +56,33 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 			continue;
 		}
 
-
-		RR::RRType rrtype = RR::RRTypeFromString(tokens[2]);
-		RR* rr = RR::createByType(rrtype);
-
-		// append name of zone when missing terminating .
-		if (tokens[0][tokens[0].length() - 1] != '.')
-			tokens[0] += "." + z->name + ".";
-		rr->fromString(tokens);
-
-		if (rr != NULL && z == NULL)
-			return false;
-
-		if (rr != NULL)
+		try
 		{
-			z->rrs.push_back(rr);
-			rr = NULL;
+			RR::RRType rrtype = RR::RRTypeFromString(tokens[2]);
+			RR* rr = RR::createByType(rrtype);
+
+			// append name of zone when missing terminating .
+			if (tokens[0][tokens[0].length() - 1] != '.')
+				tokens[0] += "." + z->name + ".";
+			rr->fromString(tokens);
+
+			if (rr != NULL && z == NULL)
+				return false;
+
+			if (rr != NULL)
+			{
+				z->rrs.push_back(rr);
+				rr = NULL;
+			}
+		} catch (std::exception& ex)
+		{
+			std::cerr << "error loading rr, line =" ;
+			for (std::vector<std::string>::const_iterator it = tokens.begin();
+				it != tokens.end();
+				++it)
+				std::cerr << " " << *it;
+			std::cerr << std::endl;
+			throw;
 		}
 	}
 

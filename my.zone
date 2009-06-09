@@ -43,6 +43,7 @@ $ORIGIN e-finance.reverse-dns.net
 $ORIGIN preteam.org
 ; xs4all-[abc]
 ;$ACL 194.109.21.128/29 194.109.21.144/29 194.109.21.248/29
+preteam.org.			IN	SOA	ns1.static.void.ee abuse.static.void.ee 2009050711 10800 3600 86400 43200
 preteam.org.			IN	A	88.80.13.90
 d				IN	A	84.50.101.122
 preteam.org.			IN	MX	10 mail.preteam.org.
@@ -80,6 +81,7 @@ ns2				IN	A	2.2.2.2
 preteam.org.			In	MX	5	wtf.lol
 
 $ORIGIN static.void.ee
+static.void.ee.	IN	NS	ns1.static.void.ee.
 ns1				IN	A	PUBLICIP
 ;ns2				IN	CNAME	ns1.static.void.ee.
 ns2				IN	A	PUBLICIP
