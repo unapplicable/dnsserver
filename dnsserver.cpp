@@ -216,6 +216,10 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 	int numSockets = 0;
 	int port = 53;
 
+#ifndef LINUX
+	WSADATA wda;
+	WSAStartup(MAKEWORD(2, 1), &wda);
+#endif
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = PF_UNSPEC;
 	hints.ai_socktype = SOCK_DGRAM;
