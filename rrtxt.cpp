@@ -12,7 +12,7 @@ void RRTXT::packContents(char* data, unsigned int len, unsigned int& offset)
 void RRTXT::fromStringContents(const std::vector<std::string>& tokens)
 {
 	for (unsigned int i = 0; i < tokens.size(); ++i)
-					rdata += (i != 3 ? " " : "" )+ tokens[i];
+					rdata += (i != 0 ? " " : "" )+ tokens[i];
 }
 
 std::ostream& RRTXT::dumpContents(std::ostream& os) const
