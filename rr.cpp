@@ -60,7 +60,7 @@ std::ostream& operator <<(std::ostream& os, const RR& r)
 std::ostream& RR::dumpContents(std::ostream& os) const
 {
 	for (unsigned int i = 0; i < rdata.length(); ++i)
-		os << std::hex << (unsigned char)rdata[i] << " ";
+		os << std::hex << ((unsigned int)rdata[i] & 0xFF) << " ";
 
 	return os;	
 }

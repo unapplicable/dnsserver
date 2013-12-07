@@ -11,6 +11,7 @@ class RRCERT : public RR
 {
 	public:		
 		virtual void fromStringContents(const std::vector<std::string>& v);
+		std::ostream& dumpContents(std::ostream&) const;
 		virtual RR* clone() const { return new RRCERT(*this); }
 		virtual ~RRCERT() {};
 };
