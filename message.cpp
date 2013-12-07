@@ -75,8 +75,16 @@ bool Message::unpack(char *data, unsigned int len, unsigned int& offset)
 		for (unsigned short i = 0; i < counts[rrtype]; i++)
 		{
 			RR *r = new RR();
-			if (!r->unpack(data, len, iter, query && rrtype == 0))
+			try
 			{
+				if (!r->unpack(data, len, iter, query && rrtype == 0))
+				{
+					delete r;
+					return false;
+				}
+			} catch (std::exception& ex)
+			{
+				std::cerr << "failed to unpack" << std::endl;
 				delete r;
 				return false;
 			}
