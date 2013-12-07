@@ -126,8 +126,8 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 					if (
 						(rr->type == qrr->type && 
 						0 == rr->name.compare(0, qrrlower.length(), qrrlower)
-						) ||
-						(qrr->type == RR::TYPESTAR)
+						)/* ||
+						(qrr->type == RR::TYPESTAR)*/
 						)
 					{
 						RR *arr = rr->clone();
@@ -201,8 +201,8 @@ int setnonblock(SOCKET sockfd, int nonblock)
 void daemonize()
 {
 #ifdef LINUX
-	setreuid(1000, 1000);
-	setregid(1000, 1000);
+	setreuid(1012, 1012);
+	setregid(1021, 1021);
 
 	if (fork() != 0)
 		exit(1);
