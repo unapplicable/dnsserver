@@ -126,8 +126,8 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 					if (
 						(rr->type == qrr->type && 
 						0 == rr->name.compare(0, qrrlower.length(), qrrlower)
-						)/* ||
-						(qrr->type == RR::TYPESTAR)*/
+						) ||
+						(qrr->type == RR::TYPESTAR)
 						)
 					{
 						RR *arr = rr->clone();
@@ -198,18 +198,21 @@ int setnonblock(SOCKET sockfd, int nonblock)
 #endif
 }
 
-void daemonize()
+void daemonize(int uid, int gid)
 {
 #ifdef LINUX
-	setreuid(1012, 1012);
-	setregid(1021, 1021);
+	if (uid != -1)
+		setreuid(uid, uid);
+
+	if (gid != -1)
+		setregid(gid, gid);
 
 	if (fork() != 0)
 		exit(1);
 #endif
 }
 
-void serverloop(char **vaddr, vector<Zone *>& zones)
+void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid)
 {
 	SOCKET s[100];
 	ADDRINFO hints, *addrinfo, *addrinfoi;
@@ -257,7 +260,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones)
 		freeaddrinfo(addrinfo);
 	}
 
-	daemonize();
+	daemonize(uid, gid);
 	
 	while (true)
 	{
@@ -344,7 +347,21 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 
-	serverloop(&argv[2], zones);
+	int uid = -1, gid = -1;
+	int arg;
+	for (arg = 2; arg < argc; ) {
+		if (argv[arg] == std::string("-u")) {
+			uid = atoi(argv[arg + 1]);
+			arg += 2;
+		} else
+		if (argv[arg] == std::string("-g")) {
+			gid = atoi(argv[arg + 1]);
+			arg += 2;
+		} else
+			break;
+	}
+
+	serverloop(&argv[arg], zones, uid, gid);
 	return 0;
 }
 

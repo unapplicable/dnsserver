@@ -13,8 +13,8 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 		std::string line = *di;
 		
 		std::string::size_type cmtpos;
-		if ((cmtpos = line.find(';')) != std::string::npos ||
-			(cmtpos = line.find('#')) != std::string::npos)
+		if ((cmtpos = line.find('!')) != std::string::npos ||
+			(cmtpos = line.find('!')) != std::string::npos)
 			line.erase(cmtpos);
 		// tokenize
 		std::vector<std::string> tokens;
