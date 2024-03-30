@@ -4,7 +4,9 @@
 void RRTXT::packContents(char* data, unsigned int len, unsigned int& offset)
 {
 	unsigned int oldoffset = offset - 2;
-	packName(data, len, offset, rdata, false);
+	data[offset++] = (unsigned char)rdata.length();
+	rdata.copy(&data[offset], rdata.length());
+	offset += (unsigned int)rdata.length();
 	unsigned int packedrdlen = offset - (oldoffset + 2);
 	(unsigned short&)data[oldoffset] = htons(packedrdlen);
 }
