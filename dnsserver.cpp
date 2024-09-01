@@ -118,11 +118,12 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 				reply->recursionavailable = reply->recursiondesired = msgtest->recursiondesired;
 
 				vector<RR *>::const_iterator rriter;
+				RR *rrNs = nullptr;
 				for (rriter = z->rrs.begin(); rriter != z->rrs.end(); ++rriter)
 				{
 					RR *rr = *rriter;
 
-
+					
 					if (
 						(rr->type == qrr->type && 
 						0 == rr->name.compare(0, qrrlower.length(), qrrlower)
@@ -139,13 +140,25 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 
 						if (qrr->type != RR::TYPESTAR)
 							break;
+					} else if (rr->type == RR::NS && 0 == rr->name.compare(0, qrrlower.length(), qrrlower)) {
+						rrNs = rr;
 					}
+				}
+
+				if (reply->an.size() == 0 && rrNs != nullptr) {
+					RR *arr = rrNs->clone();
+					arr->query = false;
+					
+					arr->ttl = 10 * 60; // 10 minutes
+											
+					reply->ns.push_back(arr);
+					reply->authoritative = true;
 				}
 				
 				break;
 			}
 
-			if (reply == NULL || reply->an.size() == 0)
+			if (reply == NULL || (reply->an.size() == 0 && reply->ns.size() == 0))
 			{
 				reply = new Message();
 				reply->id = msgtest->id;
