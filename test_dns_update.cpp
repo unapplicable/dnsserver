@@ -868,3 +868,311 @@ TEST_CASE("Case-insensitive comparison works without tolower", "[case][refactor]
     std::string query_name = dns_name_tolower("HoSt.TeSt.OrG.");
     CHECK(zones[0]->rrs[0]->name == query_name);
 }
+
+// ===== Tests for actual use cases that required lowercasing =====
+
+// Use case 1: UPDATE zone matching (handleUpdate zone finding)
+TEST_CASE("UPDATE message finds zone with mixed case", "[usecase][update][case]")
+{
+    t_data zoneData;
+    
+    // Zone defined in lowercase
+    zoneData.push_back("$ORIGIN example.com.");
+    zoneData.push_back("@       IN  SOA     ns1.example.com. admin.example.com. 1 3600 900 604800 86400");
+    zoneData.push_back("test    IN  A       192.168.1.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    
+    // Create UPDATE message with mixed-case zone name
+    char packet[200];
+    memset(packet, 0, sizeof(packet));
+    
+    *(uint16_t*)(packet + 0) = htons(0x1234);
+    *(uint16_t*)(packet + 2) = htons(0x2800);  // UPDATE opcode
+    *(uint16_t*)(packet + 4) = htons(1);       // ZOCOUNT
+    *(uint16_t*)(packet + 6) = htons(0);       // PRCOUNT
+    *(uint16_t*)(packet + 8) = htons(0);       // UPCOUNT
+    *(uint16_t*)(packet + 10) = htons(0);      // ADCOUNT
+    
+    unsigned int off = 12;
+    
+    // Zone section with MIXED CASE: "ExAmPlE.CoM"
+    packet[off++] = 7;
+    memcpy(packet + off, "ExAmPlE", 7); off += 7;
+    packet[off++] = 3;
+    memcpy(packet + off, "CoM", 3); off += 3;
+    packet[off++] = 0;
+    *(uint16_t*)(packet + off) = htons(6); off += 2;  // SOA
+    *(uint16_t*)(packet + off) = htons(1); off += 2;  // IN
+    
+    Message msg;
+    unsigned int offset = 0;
+    bool result = msg.unpack(packet, off, offset);
+    
+    REQUIRE(result);
+    REQUIRE(msg.qd.size() == 1);
+    
+    // Zone name should be stored lowercase
+    CHECK(msg.qd[0]->name == "example.com");
+    
+    // The zone should match despite case difference
+    std::string zone_name_normalized(msg.qd[0]->name);
+    if (!zone_name_normalized.empty() && zone_name_normalized[zone_name_normalized.length()-1] == '.')
+        zone_name_normalized = zone_name_normalized.substr(0, zone_name_normalized.length()-1);
+    
+    std::string znormalized(zones[0]->name);
+    if (!znormalized.empty() && znormalized[znormalized.length()-1] == '.')
+        znormalized = znormalized.substr(0, znormalized.length()-1);
+    
+    CHECK(zone_name_normalized == znormalized);
+}
+
+// Use case 2: UPDATE prerequisites - checking if name exists (ANY type)
+TEST_CASE("UPDATE prerequisite matches existing RR with mixed case", "[usecase][update][prereq]")
+{
+    t_data zoneData;
+    
+    zoneData.push_back("$ORIGIN test.org.");
+    zoneData.push_back("host    IN  A       10.0.0.1");
+    zoneData.push_back("mail    IN  A       10.0.0.2");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    REQUIRE(zones[0]->rrs.size() == 2);
+    
+    // Simulate prerequisite check with mixed case name
+    std::string prereq_name = dns_name_tolower("HoSt.TeSt.OrG.");
+    std::string prereq_name_normalized(prereq_name);
+    if (!prereq_name_normalized.empty() && prereq_name_normalized[prereq_name_normalized.length()-1] == '.')
+        prereq_name_normalized = prereq_name_normalized.substr(0, prereq_name_normalized.length()-1);
+    
+    bool found = false;
+    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    {
+        RR *rr = zones[0]->rrs[i];
+        std::string rr_name_normalized(rr->name);
+        if (!rr_name_normalized.empty() && rr_name_normalized[rr_name_normalized.length()-1] == '.')
+            rr_name_normalized = rr_name_normalized.substr(0, rr_name_normalized.length()-1);
+        
+        if (rr_name_normalized == prereq_name_normalized)
+        {
+            found = true;
+            break;
+        }
+    }
+    
+    CHECK(found);
+}
+
+// Use case 3: UPDATE prerequisites - checking if specific RR type exists
+TEST_CASE("UPDATE prerequisite matches RR type with mixed case", "[usecase][update][prereq]")
+{
+    t_data zoneData;
+    
+    zoneData.push_back("$ORIGIN example.net.");
+    zoneData.push_back("www     IN  A       192.168.1.1");
+    zoneData.push_back("www     IN  MX      10 mail.example.net.");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    
+    // Check for A record with mixed case name
+    std::string prereq_name = dns_name_tolower("WwW.ExAmPlE.NeT.");
+    std::string prereq_name_normalized(prereq_name);
+    if (!prereq_name_normalized.empty() && prereq_name_normalized[prereq_name_normalized.length()-1] == '.')
+        prereq_name_normalized = prereq_name_normalized.substr(0, prereq_name_normalized.length()-1);
+    
+    bool found = false;
+    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    {
+        RR *rr = zones[0]->rrs[i];
+        std::string rr_name_normalized(rr->name);
+        if (!rr_name_normalized.empty() && rr_name_normalized[rr_name_normalized.length()-1] == '.')
+            rr_name_normalized = rr_name_normalized.substr(0, rr_name_normalized.length()-1);
+        
+        if (rr_name_normalized == prereq_name_normalized && rr->type == RR::A)
+        {
+            found = true;
+            break;
+        }
+    }
+    
+    CHECK(found);
+}
+
+// Use case 4: UPDATE deleting records by name
+TEST_CASE("UPDATE delete finds RRs to delete with mixed case", "[usecase][update][delete]")
+{
+    t_data zoneData;
+    
+    zoneData.push_back("$ORIGIN domain.com.");
+    zoneData.push_back("old     IN  A       10.0.0.1");
+    zoneData.push_back("keep    IN  A       10.0.0.2");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    REQUIRE(zones[0]->rrs.size() == 2);
+    
+    // Find RR to delete with mixed case name
+    std::string delete_name = dns_name_tolower("OlD.DoMaIn.CoM.");
+    std::string delete_name_normalized(delete_name);
+    if (!delete_name_normalized.empty() && delete_name_normalized[delete_name_normalized.length()-1] == '.')
+        delete_name_normalized = delete_name_normalized.substr(0, delete_name_normalized.length()-1);
+    
+    RR* found_rr = nullptr;
+    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    {
+        RR *rr = zones[0]->rrs[i];
+        std::string rr_name_normalized(rr->name);
+        if (!rr_name_normalized.empty() && rr_name_normalized[rr_name_normalized.length()-1] == '.')
+            rr_name_normalized = rr_name_normalized.substr(0, rr_name_normalized.length()-1);
+        
+        if (rr_name_normalized == delete_name_normalized)
+        {
+            found_rr = rr;
+            break;
+        }
+    }
+    
+    CHECK(found_rr != nullptr);
+    if (found_rr) {
+        CHECK(found_rr->name == "old.domain.com.");
+    }
+}
+
+// Use case 5: QUERY matching - finding zone for query
+TEST_CASE("QUERY finds zone with mixed case query name", "[usecase][query][case]")
+{
+    t_data zoneData;
+    
+    zoneData.push_back("$ORIGIN example.org.");
+    zoneData.push_back("www     IN  A       192.168.1.100");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    
+    // Simulate query with mixed case
+    std::string qrr_name = dns_name_tolower("WwW.ExAmPlE.OrG");
+    std::string z_name = zones[0]->name;
+    
+    // Remove trailing dots for comparison
+    if (!z_name.empty() && z_name[z_name.length()-1] == '.')
+        z_name = z_name.substr(0, z_name.length()-1);
+    
+    // Check if query name ends with zone name (case-insensitive)
+    std::string::size_type zpos = qrr_name.rfind(z_name);
+    
+    CHECK(zpos != std::string::npos);
+    CHECK(zpos == (qrr_name.length() - z_name.length()));
+}
+
+// Use case 6: QUERY matching - finding RRs in zone
+TEST_CASE("QUERY finds RR with mixed case query", "[usecase][query][case]")
+{
+    t_data zoneData;
+    
+    zoneData.push_back("$ORIGIN test.com.");
+    zoneData.push_back("server  IN  A       10.1.2.3");
+    zoneData.push_back("client  IN  A       10.1.2.4");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    REQUIRE(zones[0]->rrs.size() == 2);
+    
+    // Query with mixed case
+    std::string qrr_name = dns_name_tolower("SeRvEr.TeSt.CoM.");
+    
+    bool found = false;
+    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    {
+        RR *rr = zones[0]->rrs[i];
+        if (rr->type == RR::A && 
+            0 == rr->name.compare(0, qrr_name.length(), qrr_name))
+        {
+            found = true;
+            break;
+        }
+    }
+    
+    CHECK(found);
+}
+
+// Use case 7: QUERY wildcard matching (TYPESTAR)
+TEST_CASE("QUERY ANY type matches all RRs with mixed case", "[usecase][query][wildcard]")
+{
+    t_data zoneData;
+    
+    zoneData.push_back("$ORIGIN multi.org.");
+    zoneData.push_back("host    IN  A       1.2.3.4");
+    zoneData.push_back("host    IN  MX      10 mail.multi.org.");
+    zoneData.push_back("host    IN  TXT     \"test\"");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    REQUIRE(zones[0]->rrs.size() == 3);
+    
+    // Query for ANY with mixed case
+    std::string qrr_name = dns_name_tolower("HoSt.MuLtI.OrG.");
+    
+    int match_count = 0;
+    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    {
+        RR *rr = zones[0]->rrs[i];
+        if (0 == rr->name.compare(0, qrr_name.length(), qrr_name))
+        {
+            match_count++;
+        }
+    }
+    
+    CHECK(match_count == 3);  // Should match all three records
+}
+
+// Use case 8: NS record delegation matching
+TEST_CASE("QUERY finds NS record with mixed case", "[usecase][query][ns]")
+{
+    t_data zoneData;
+    
+    zoneData.push_back("$ORIGIN parent.com.");
+    zoneData.push_back("sub     IN  NS      ns1.sub.parent.com.");
+    zoneData.push_back("www     IN  A       10.0.0.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    
+    // Query with mixed case
+    std::string qrr_name = dns_name_tolower("SuB.PaReNt.CoM.");
+    
+    RR* ns_rr = nullptr;
+    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    {
+        RR *rr = zones[0]->rrs[i];
+        if (rr->type == RR::NS && 
+            0 == rr->name.compare(0, qrr_name.length(), qrr_name))
+        {
+            ns_rr = rr;
+            break;
+        }
+    }
+    
+    CHECK(ns_rr != nullptr);
+    if (ns_rr) {
+        CHECK(ns_rr->name == "sub.parent.com.");
+    }
+}
