@@ -108,8 +108,11 @@ std::string RR::unpackName(char *data, unsigned int len, unsigned int& offset)
 		if ((tokencode & 0xC0) == 0xC0)
 		{
 			i = ntohs((unsigned short &)data[i]) & ~0xC000;
-			iter += 2;
-			packed = true;
+			if (!packed)
+			{
+				iter += 2;
+				packed = true;
+			}
 			continue;
 		} else
 		{
@@ -263,13 +266,13 @@ bool RR::unpack(char *data, unsigned int len, unsigned int& offset, bool isQuery
 	if (offset + 3 >= len)
 		return false;
 
-	ttl = ntohl((long &)data[offset]);
+	ttl = ntohl(*(uint32_t*)&data[offset]);
 	offset += 4;
 
 	if (offset + 1 >= len)
 		return false;
 
-	rdlen = ntohs((short &)data[offset]);
+	rdlen = ntohs(*(uint16_t*)&data[offset]);
 	offset += 2;
 
 	if (offset + rdlen > len)

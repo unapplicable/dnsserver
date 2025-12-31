@@ -3,6 +3,17 @@
 #include <sstream>
 #include <iomanip>
 
+bool RRDHCID::unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery)
+{
+	// Call base class unpack which reads into rdata
+	if (!RR::unpack(data, len, offset, isQuery))
+		return false;
+	
+	// Copy rdata to identifier
+	identifier = rdata;
+	return true;
+}
+
 std::ostream& RRDHCID::dumpContents(std::ostream& os) const
 {
 	os << "dhcid [";

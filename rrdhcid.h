@@ -11,6 +11,7 @@ class RRDHCID : public RR
 {
 	public:
 		std::string identifier;
+		virtual bool unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery);
 		virtual void packContents(char* data, unsigned int len, unsigned int& offset);
 		virtual std::ostream& dumpContents(std::ostream& os) const;
 		virtual void fromStringContents(const std::vector<std::string>& v);
