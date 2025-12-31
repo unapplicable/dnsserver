@@ -105,7 +105,7 @@ std::string RR::unpackName(char *data, unsigned int len, unsigned int& offset)
 			throw std::exception();
 
 		unsigned char tokencode = (unsigned char)data[i];
-		if ((tokencode & 0xC0) != 0)
+		if ((tokencode & 0xC0) == 0xC0)
 		{
 			i = ntohs((unsigned short &)data[i]) & ~0xC000;
 			iter += 2;

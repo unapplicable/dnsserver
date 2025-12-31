@@ -93,7 +93,8 @@ bool Message::unpack(char *data, unsigned int len, unsigned int& offset)
 			{
 				// For QUERY messages: only section 0 (Question) is query-style
 				// For UPDATE messages: only section 0 (Zone) is query-style
-				bool isQueryStyleRR = (query && rrtype == 0);
+				// For both message types, section 0 is query-style (name/type/class only)
+				bool isQueryStyleRR = (rrtype == 0);
 				if (!r->unpack(data, len, iter, isQueryStyleRR))
 				{
 					delete r;
