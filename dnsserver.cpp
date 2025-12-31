@@ -436,10 +436,12 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 				{
 					RR *rr = *rriter;
 
+					string rrlower(rr->name);
+					std::transform(rrlower.begin(), rrlower.end(), rrlower.begin(), (int (*)(int))tolower);
 					
 					if (
 						(rr->type == qrr->type && 
-						0 == rr->name.compare(0, qrrlower.length(), qrrlower)
+						0 == rrlower.compare(0, qrrlower.length(), qrrlower)
 						) ||
 						(qrr->type == RR::TYPESTAR)
 						)
@@ -453,7 +455,7 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 
 						if (qrr->type != RR::TYPESTAR)
 							break;
-					} else if (rr->type == RR::NS && 0 == rr->name.compare(0, qrrlower.length(), qrrlower)) {
+					} else if (rr->type == RR::NS && 0 == rrlower.compare(0, qrrlower.length(), qrrlower)) {
 						rrNs = rr;
 					}
 				}
