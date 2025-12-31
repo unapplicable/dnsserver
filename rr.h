@@ -17,8 +17,8 @@ std::string bin2hex(unsigned char bin);
 class RR
 {
 public:
-	enum RRType { RRUNDEF = 0, A = 1, NS, MD, MF, CNAME, SOA, MB, MG, MR,RRNULL,WKS, PTR, HINFO, MINFO, MX, TXT,AAAA = 28, CERT = 37, AXFR = 252, MAILB = 253, MAILA = 254, TYPESTAR = 255};
-	enum RRClass { CLASSUNDEF = 0, CLASSIN = 1, CS = 2, CH = 3, HS = 4, CLASSSTAR = 255 };
+	enum RRType { RRUNDEF = 0, A = 1, NS, MD, MF, CNAME, SOA, MB, MG, MR,RRNULL,WKS, PTR, HINFO, MINFO, MX, TXT,AAAA = 28, CERT = 37, DHCID = 49, AXFR = 252, MAILB = 253, MAILA = 254, TYPESTAR = 255};
+	enum RRClass { CLASSUNDEF = 0, CLASSIN = 1, CS = 2, CH = 3, HS = 4, CLASSNONE = 254, CLASSANY = 255 };
 
 	
 	RRType type;
@@ -56,6 +56,7 @@ public:
 		MATCHSTRING(srrtype, TXT, TXT);
 		MATCHSTRING(srrtype, AAAA, AAAA);
 		MATCHSTRING(srrtype, CERT, CERT);
+		MATCHSTRING(srrtype, DHCID, DHCID);
 		MATCHSTRING(srrtype, AXFR, AXFR);
 		MATCHSTRING(srrtype, MAILB, MAILB);
 		MATCHSTRING(srrtype, MAILA, MAILA);
@@ -67,7 +68,7 @@ public:
 	{
 		switch (t)
 		{	SC(A); SC(NS); SC(MD); SC(CNAME); SC(SOA); SC(MB); SC(MR); SC2(RRNULL, NULL); SC(WKS);
-			SC(PTR); SC(MINFO); SC(MX); SC(TXT); SC(AAAA); SC(CERT); SC(AXFR); SC(MAILB); SC(MAILA); 
+			SC(PTR); SC(MINFO); SC(MX); SC(TXT); SC(AAAA); SC(CERT); SC(DHCID); SC(AXFR); SC(MAILB); SC(MAILA); 
 			SC2(TYPESTAR, STAR);
 			default: 
 				std::stringstream ss;
@@ -80,7 +81,7 @@ public:
 	{
 		switch (c)
 		{
-			SC2(CLASSIN, IN); SC(CS); SC(CH); SC(HS); SC2(CLASSSTAR, STAR);
+			SC2(CLASSIN, IN); SC(CS); SC(CH); SC(HS); SC2(CLASSNONE, NONE); SC2(CLASSANY, ANY);
 			default: 
 				std::stringstream ss;
 				ss << "unk(" << std::hex << (int)c << ")"; 

@@ -10,6 +10,7 @@
 #include "rraaaa.h"
 #include "rra.h"
 #include "rrcert.h"
+#include "rrdhcid.h"
 
 #include <cstring>
 #include <exception>
@@ -168,6 +169,9 @@ RR* RR::createByType(RRType type)
 		case CERT:
 			return new RRCERT();
 
+		case DHCID:
+			return new RRDHCID();
+
 		default:
 			std::cerr << "tried to create cname of type " << type << std::endl;
 			throw std::exception();
@@ -185,8 +189,8 @@ void RR::fromString(const std::vector<std::string>& tokens)
 	if (tokens[1] == "CH")
 		rrclass = CH;
 	else
-	if (tokens[1] == "*")
-		rrclass = CLASSSTAR;
+	if (tokens[1] == "*" || tokens[1] == "ANY")
+		rrclass = CLASSANY;
 	else
 		rrclass = CLASSUNDEF;
 
