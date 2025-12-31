@@ -62,7 +62,7 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 			RR* rr = RR::createByType(rrtype);
 
 			// append name of zone when missing terminating .
-			if (tokens[0][tokens[0].length() - 1] != '.')
+			if (!tokens[0].empty() && tokens[0][tokens[0].length() - 1] != '.')
 				tokens[0] += "." + z->name + ".";
 			rr->fromString(tokens);
 
