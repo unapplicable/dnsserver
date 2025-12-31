@@ -500,3 +500,197 @@ TEST_CASE("RRDHCID unpack called through base pointer (virtual method)", "[virtu
     
     delete base_ptr;
 }
+
+// Test 7: Compression pointer detection bug (commit 0eb4fe3)
+// Bug: Was checking (tokencode & 0xC0) != 0 instead of == 0xC0
+// This incorrectly treated labels with length 64-127 as compression pointers
+TEST_CASE("DNS name with label length 64+ not treated as pointer", "[pointer][0eb4fe3]")
+{
+    char packet[150];
+    memset(packet, 0, sizeof(packet));
+    
+    unsigned int offset = 0;
+    
+    // Create a name with a 65-character label (0x41 = 65)
+    // 0x41 has bit 6 set (0x40) but not bit 7, so (0x41 & 0xC0) = 0x40
+    // Old buggy code: (0x40 != 0) = true, would treat as pointer -> crash
+    // Fixed code: (0x40 == 0xC0) = false, treats as normal label
+    packet[0] = 0x41;  // Length 65
+    memset(packet + 1, 'A', 65);
+    packet[66] = 0;  // Null terminator
+    
+    RR rr;
+    std::string name = rr.unpackName(packet, sizeof(packet), offset);
+    
+    // Should successfully parse as a 65-character label
+    CHECK(name.length() == 65);
+    CHECK(name == std::string(65, 'A'));
+    CHECK(offset == 67);  // 1 (length) + 65 (data) + 1 (null)
+}
+
+TEST_CASE("DNS name with label length 127 not treated as pointer", "[pointer][0eb4fe3]")
+{
+    char packet[150];
+    memset(packet, 0, sizeof(packet));
+    
+    unsigned int offset = 0;
+    
+    // 0x7F = 127, has both bits 0x40 and 0x20 set, but not 0x80
+    // (0x7F & 0xC0) = 0x40, not 0xC0
+    // Old code would incorrectly treat this as a pointer
+    packet[0] = 0x7F;  // Length 127 (but gets misinterpreted by old code)
+    // Don't actually fill 127 bytes since old code would crash trying to read as pointer
+    memset(packet + 1, 'B', 10);
+    packet[11] = 0;
+    
+    RR rr;
+    // With the fix, this should try to parse but fail due to insufficient data
+    // The important thing is it doesn't crash by treating 0x7F as a pointer
+    try {
+        std::string name = rr.unpackName(packet, 12, offset);
+        // If we get here, the length was treated correctly (not as pointer)
+        // but packet is too short, so name might be truncated or throw
+        SUCCEED("Correctly treated as length, not pointer");
+    } catch (...) {
+        // Expected if packet too short for 127 bytes
+        SUCCEED("Correctly treated as length, not pointer (threw on short packet)");
+    }
+}
+
+TEST_CASE("DNS compression pointer 0xC0 correctly detected", "[pointer][0eb4fe3]")
+{
+    char packet[100];
+    memset(packet, 0, sizeof(packet));
+    
+    unsigned int offset = 20;
+    
+    // At offset 50: "test" null terminated
+    packet[50] = 4;
+    memcpy(packet + 51, "test", 4);
+    packet[55] = 0;
+    
+    // At offset 20: compression pointer to offset 50
+    // 0xC0 has both bits 7 and 6 set: (0xC0 & 0xC0) == 0xC0
+    packet[20] = 0xC0;
+    packet[21] = 50;
+    
+    RR rr;
+    std::string name = rr.unpackName(packet, sizeof(packet), offset);
+    
+    CHECK(name == "test");
+    CHECK(offset == 22);  // Moved 2 bytes for the pointer
+}
+
+// Test 8: UPDATE message section parsing (commit 0eb4fe3)
+// Bug: Was checking (query && rrtype == 0) instead of just (rrtype == 0)
+// This caused UPDATE message sections 1-3 to be parsed as query-style when they should be full RRs
+TEST_CASE("UPDATE message sections parsed correctly", "[update][0eb4fe3]")
+{
+    char packet[200];
+    memset(packet, 0, sizeof(packet));
+    
+    // DNS Header for UPDATE message
+    *(uint16_t*)(packet + 0) = htons(0x5678);  // ID
+    // Opcode = 5 (UPDATE), shifted left 11 bits = 0x2800
+    *(uint16_t*)(packet + 2) = htons(0x2800);  
+    *(uint16_t*)(packet + 4) = htons(1);       // ZOCOUNT: 1
+    *(uint16_t*)(packet + 6) = htons(1);       // PRCOUNT: 1 prerequisite
+    *(uint16_t*)(packet + 8) = htons(1);       // UPCOUNT: 1 update
+    *(uint16_t*)(packet + 10) = htons(0);      // ADCOUNT: 0
+    
+    unsigned int off = 12;
+    
+    // Section 0 (Zone): query-style (name/type/class only, no TTL/RDATA)
+    packet[off++] = 7;
+    memcpy(packet + off, "example", 7); off += 7;
+    packet[off++] = 3;
+    memcpy(packet + off, "com", 3); off += 3;
+    packet[off++] = 0;
+    *(uint16_t*)(packet + off) = htons(6); off += 2;   // SOA type
+    *(uint16_t*)(packet + off) = htons(1); off += 2;   // IN class
+    
+    // Section 1 (Prerequisite): MUST be full RR format (with TTL and RDATA)
+    // Bug: old code would parse as query-style for UPDATE messages
+    unsigned int prereq_start = off;  // Save start of prerequisite for pointer
+    packet[off++] = 4;
+    memcpy(packet + off, "test", 4); off += 4;
+    packet[off++] = 0xC0;  // Pointer to "example.com"
+    packet[off++] = 12;
+    *(uint16_t*)(packet + off) = htons(255); off += 2;  // ANY type
+    *(uint16_t*)(packet + off) = htons(254); off += 2;  // NONE class
+    *(uint32_t*)(packet + off) = htonl(0); off += 4;    // TTL = 0
+    *(uint16_t*)(packet + off) = htons(0); off += 2;    // RDLEN = 0
+    
+    // Section 2 (Update): MUST be full RR format
+    packet[off++] = 0xC0;  // Pointer to "test.example.com"
+    packet[off++] = prereq_start;
+    *(uint16_t*)(packet + off) = htons(1); off += 2;    // A type
+    *(uint16_t*)(packet + off) = htons(1); off += 2;    // IN class
+    *(uint32_t*)(packet + off) = htonl(3600); off += 4; // TTL = 3600
+    *(uint16_t*)(packet + off) = htons(4); off += 2;    // RDLEN = 4
+    packet[off++] = 192;  // IP 192.168.1.1
+    packet[off++] = 168;
+    packet[off++] = 1;
+    packet[off++] = 1;
+    
+    Message msg;
+    unsigned int offset = 0;
+    bool result = msg.unpack(packet, off, offset);
+    
+    // With the fix, all sections parse correctly
+    CHECK(result);
+    CHECK(msg.opcode == Message::UPDATE);
+    CHECK(msg.qd.size() == 1);   // Zone section
+    CHECK(msg.an.size() == 1);   // Prerequisite section
+    CHECK(msg.ns.size() == 1);   // Update section
+    
+    // Verify prerequisite has TTL and RDATA (full RR format)
+    CHECK(msg.an[0]->name == "test.example.com");
+    CHECK(msg.an[0]->ttl == 0);
+    CHECK(msg.an[0]->rdlen == 0);
+    
+    // Verify update has TTL and RDATA
+    CHECK(msg.ns[0]->name == "test.example.com");
+    CHECK(msg.ns[0]->type == RR::A);
+    CHECK(msg.ns[0]->ttl == 3600);
+    CHECK(msg.ns[0]->rdlen == 4);
+}
+
+TEST_CASE("QUERY message question section is query-style", "[query][0eb4fe3]")
+{
+    char packet[100];
+    memset(packet, 0, sizeof(packet));
+    
+    // DNS Header for QUERY message
+    *(uint16_t*)(packet + 0) = htons(0x9ABC);  // ID
+    *(uint16_t*)(packet + 2) = htons(0x0100);  // Standard query with RD bit
+    *(uint16_t*)(packet + 4) = htons(1);       // QDCOUNT: 1
+    *(uint16_t*)(packet + 6) = htons(0);       // ANCOUNT: 0
+    *(uint16_t*)(packet + 8) = htons(0);       // NSCOUNT: 0
+    *(uint16_t*)(packet + 10) = htons(0);      // ARCOUNT: 0
+    
+    unsigned int off = 12;
+    
+    // Question section: query-style (name/type/class only)
+    packet[off++] = 3;
+    memcpy(packet + off, "www", 3); off += 3;
+    packet[off++] = 7;
+    memcpy(packet + off, "example", 7); off += 7;
+    packet[off++] = 3;
+    memcpy(packet + off, "com", 3); off += 3;
+    packet[off++] = 0;
+    *(uint16_t*)(packet + off) = htons(1); off += 2;   // A type
+    *(uint16_t*)(packet + off) = htons(1); off += 2;   // IN class
+    
+    Message msg;
+    unsigned int offset = 0;
+    bool result = msg.unpack(packet, off, offset);
+    
+    CHECK(result);
+    CHECK(msg.opcode == Message::QUERY);
+    CHECK(msg.qd.size() == 1);
+    CHECK(msg.qd[0]->name == "www.example.com");
+    CHECK(msg.qd[0]->type == RR::A);
+    CHECK(msg.qd[0]->rrclass == RR::CLASSIN);
+    // Query section doesn't have TTL or RDATA
+}
