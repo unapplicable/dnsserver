@@ -5,7 +5,7 @@
 set -e
 
 SERVER="127.0.0.1"
-PORT="11053"
+PORT="15353"
 ZONE="test.example.com"
 LOGFILE="test_update.log"
 
@@ -28,14 +28,15 @@ log() {
 pass() {
     echo -e "${GREEN}[PASS]${NC} $1"
     log "PASS: $1"
-	echo ehktwetw
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    TESTS_RUN=$((TESTS_RUN + 1))
 }
 
 fail() {
     echo -e "${RED}[FAIL]${NC} $1"
     log "FAIL: $1"
-    ((TESTS_FAILED++))
-    ((TESTS_RUN++))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    TESTS_RUN=$((TESTS_RUN + 1))
 }
 
 skip() {
@@ -62,6 +63,47 @@ if ! command -v nsupdate &> /dev/null; then
 else
     NSUPDATE_AVAILABLE=1
 fi
+
+# Create test zone file
+create_test_zone() {
+    cat > test_update.zone << EOF
+\$ORIGIN $ZONE
+\$ACL 0.0.0.0/0
+$ZONE. IN SOA ns1.$ZONE. admin.$ZONE. 2025123101 3600 1800 604800 86400
+$ZONE. IN NS ns1.$ZONE.
+ns1.$ZONE. IN A 127.0.0.1
+EOF
+}
+
+# Start DNS server
+start_server() {
+    log "Starting DNS server on $SERVER:$PORT"
+    create_test_zone
+    ./dnsserver -p $PORT test_update.zone $SERVER > server.log 2>&1 &
+    local starter_pid=$!
+    wait $starter_pid 2>/dev/null  # Wait for parent to exit after fork
+    sleep 1
+    
+    # Find the actual server process (the forked child)
+    SERVER_PID=$(ps aux | grep "[d]nsserver -p $PORT" | awk '{print $2}')
+    
+    if [ -z "$SERVER_PID" ]; then
+        echo "Error: Failed to start DNS server"
+        cat server.log
+        exit 1
+    fi
+    
+    log "DNS server started (PID: $SERVER_PID)"
+}
+
+# Stop DNS server
+stop_server() {
+    if [ -n "$SERVER_PID" ]; then
+        log "Stopping DNS server (PID: $SERVER_PID)"
+        kill $SERVER_PID 2>/dev/null || true
+        wait $SERVER_PID 2>/dev/null || true
+    fi
+}
 
 # Test helper: Send raw DNS UPDATE packet
 send_update_raw() {
@@ -405,6 +447,13 @@ EOF
 # ============================================================
 # Run All Tests
 # ============================================================
+
+# Trap to ensure cleanup on exit
+trap stop_server EXIT INT TERM
+
+# Start the server
+start_server
+
 echo "Starting tests..."
 echo ""
 
@@ -416,6 +465,9 @@ test_delete_rrset
 test_add_dhcid_record
 test_failed_prerequisite
 test_replace_record
+
+# Stop the server
+stop_server
 
 # ============================================================
 # Test Summary
