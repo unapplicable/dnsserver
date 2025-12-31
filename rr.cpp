@@ -184,7 +184,7 @@ RR* RR::createByType(RRType type)
 
 void RR::fromString(const std::vector<std::string>& tokens)
 {
-	name = tokens[0];
+	name = dns_name_tolower(tokens[0]);
 
 	if (tokens[1] == "IN")
 		rrclass = CLASSIN;
@@ -241,7 +241,7 @@ bool RR::unpack(char *data, unsigned int len, unsigned int& offset, bool isQuery
 	query = isQuery;
 	name.clear();
 
-	name = unpackName(data, len, offset);
+	name = dns_name_tolower(unpackName(data, len, offset));
 
 	if (offset + 1 >= len)
 		return false;

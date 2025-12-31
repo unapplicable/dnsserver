@@ -41,7 +41,7 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 			}
 			z = new Zone();
 			parent = z;
-			z->name = tokens[1];
+			z->name = dns_name_tolower(tokens[1]);
 			previousName.clear();  // Reset previous name on new zone
 			continue;
 		} else

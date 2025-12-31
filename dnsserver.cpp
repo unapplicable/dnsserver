@@ -71,27 +71,25 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 	cout << "UPDATE: Processing zone " << zone_rr->name << endl;
 	
 	{
-		string zone_name_lower(zone_rr->name);
-		std::transform(zone_name_lower.begin(), zone_name_lower.end(), zone_name_lower.begin(), (int (*)(int))tolower);
+		string zone_name_normalized(zone_rr->name);
 		
 		// Normalize: remove trailing dot if present
-		if (!zone_name_lower.empty() && zone_name_lower[zone_name_lower.length()-1] == '.')
-			zone_name_lower = zone_name_lower.substr(0, zone_name_lower.length()-1);
+		if (!zone_name_normalized.empty() && zone_name_normalized[zone_name_normalized.length()-1] == '.')
+			zone_name_normalized = zone_name_normalized.substr(0, zone_name_normalized.length()-1);
 		
 		Zone *target_zone = NULL;
 		for (vector<Zone *>::const_iterator ziter = zones.begin(); ziter != zones.end(); ++ziter)
 		{
 			Zone *z = *ziter;
-			string zlower(z->name);
-			std::transform(zlower.begin(), zlower.end(), zlower.begin(), (int (*)(int))tolower);
+			string znormalized(z->name);
 			
 			// Normalize: remove trailing dot if present
-			if (!zlower.empty() && zlower[zlower.length()-1] == '.')
-				zlower = zlower.substr(0, zlower.length()-1);
+			if (!znormalized.empty() && znormalized[znormalized.length()-1] == '.')
+				znormalized = znormalized.substr(0, znormalized.length()-1);
 			
-			if (zone_name_lower == zlower || 
-			    (zone_name_lower.length() >= zlower.length() && 
-			     zone_name_lower.substr(zone_name_lower.length() - zlower.length()) == zlower))
+			if (zone_name_normalized == znormalized || 
+			    (zone_name_normalized.length() >= znormalized.length() && 
+			     zone_name_normalized.substr(zone_name_normalized.length() - znormalized.length()) == znormalized))
 			{
 				if (z->acl.size())
 				{
@@ -134,12 +132,11 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 		for (vector<RR *>::const_iterator iter = request->an.begin(); iter != request->an.end(); ++iter)
 		{
 			RR *prereq = *iter;
-			string prereq_name_lower(prereq->name);
-			std::transform(prereq_name_lower.begin(), prereq_name_lower.end(), prereq_name_lower.begin(), (int (*)(int))tolower);
+			string prereq_name_normalized(prereq->name);
 			
 			// Normalize: remove trailing dot if present
-			if (!prereq_name_lower.empty() && prereq_name_lower[prereq_name_lower.length()-1] == '.')
-				prereq_name_lower = prereq_name_lower.substr(0, prereq_name_lower.length()-1);
+			if (!prereq_name_normalized.empty() && prereq_name_normalized[prereq_name_normalized.length()-1] == '.')
+				prereq_name_normalized = prereq_name_normalized.substr(0, prereq_name_normalized.length()-1);
 			
 			cout << "  Prereq: " << prereq->name << " class=" << (int)prereq->rrclass << " type=" << (int)prereq->type << endl;
 			
@@ -155,14 +152,13 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 					for (vector<RR *>::const_iterator rriter = target_zone->rrs.begin(); rriter != target_zone->rrs.end(); ++rriter)
 					{
 						RR *rr = *rriter;
-						string rr_name_lower(rr->name);
-						std::transform(rr_name_lower.begin(), rr_name_lower.end(), rr_name_lower.begin(), (int (*)(int))tolower);
+						string rr_name_normalized(rr->name);
 						
 						// Normalize: remove trailing dot if present
-						if (!rr_name_lower.empty() && rr_name_lower[rr_name_lower.length()-1] == '.')
-							rr_name_lower = rr_name_lower.substr(0, rr_name_lower.length()-1);
+						if (!rr_name_normalized.empty() && rr_name_normalized[rr_name_normalized.length()-1] == '.')
+							rr_name_normalized = rr_name_normalized.substr(0, rr_name_normalized.length()-1);
 						
-						if (rr_name_lower == prereq_name_lower)
+						if (rr_name_normalized == prereq_name_normalized)
 						{
 							found = true;
 							break;
@@ -181,9 +177,8 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 					for (vector<RR *>::const_iterator rriter = target_zone->rrs.begin(); rriter != target_zone->rrs.end(); ++rriter)
 					{
 						RR *rr = *rriter;
-						string rr_name_lower(rr->name);
-						std::transform(rr_name_lower.begin(), rr_name_lower.end(), rr_name_lower.begin(), (int (*)(int))tolower);
-						if (rr_name_lower == prereq_name_lower && rr->type == prereq->type)
+						string rr_name_normalized(rr->name);
+						if (rr_name_normalized == prereq_name_normalized && rr->type == prereq->type)
 						{
 							found = true;
 							break;
@@ -204,9 +199,8 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 					for (vector<RR *>::const_iterator rriter = target_zone->rrs.begin(); rriter != target_zone->rrs.end(); ++rriter)
 					{
 						RR *rr = *rriter;
-						string rr_name_lower(rr->name);
-						std::transform(rr_name_lower.begin(), rr_name_lower.end(), rr_name_lower.begin(), (int (*)(int))tolower);
-						if (rr_name_lower == prereq_name_lower)
+						string rr_name_normalized(rr->name);
+						if (rr_name_normalized == prereq_name_normalized)
 						{
 							cout << "UPDATE: Prerequisite failed - name is in use" << endl;
 							reply->rcode = Message::CODEREFUSED;
@@ -219,9 +213,8 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 					for (vector<RR *>::const_iterator rriter = target_zone->rrs.begin(); rriter != target_zone->rrs.end(); ++rriter)
 					{
 						RR *rr = *rriter;
-						string rr_name_lower(rr->name);
-						std::transform(rr_name_lower.begin(), rr_name_lower.end(), rr_name_lower.begin(), (int (*)(int))tolower);
-						if (rr_name_lower == prereq_name_lower && rr->type == prereq->type)
+						string rr_name_normalized(rr->name);
+						if (rr_name_normalized == prereq_name_normalized && rr->type == prereq->type)
 						{
 							cout << "UPDATE: Prerequisite failed - RRset exists" << endl;
 							reply->rcode = Message::CODEREFUSED;
@@ -240,8 +233,7 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 		for (vector<RR *>::const_iterator iter = request->ns.begin(); iter != request->ns.end(); ++iter)
 		{
 			RR *update = *iter;
-			string update_name_lower(update->name);
-			std::transform(update_name_lower.begin(), update_name_lower.end(), update_name_lower.begin(), (int (*)(int))tolower);
+			string update_name_normalized(update->name);
 			
 			cout << "  Update: " << update->name << " class=" << (int)update->rrclass << " type=" << (int)update->type << " ttl=" << update->ttl << endl;
 			
@@ -262,10 +254,9 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 				while (rriter != target_zone->rrs.end())
 				{
 					RR *rr = *rriter;
-					string rr_name_lower(rr->name);
-					std::transform(rr_name_lower.begin(), rr_name_lower.end(), rr_name_lower.begin(), (int (*)(int))tolower);
+					string rr_name_normalized(rr->name);
 					
-					if (rr_name_lower == update_name_lower && rr->type == update->type)
+					if (rr_name_normalized == update_name_normalized && rr->type == update->type)
 					{
 						if (update->rdlen == 0 || rr->rdata == update->rdata)
 						{
@@ -284,10 +275,9 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 				while (rriter != target_zone->rrs.end())
 				{
 					RR *rr = *rriter;
-					string rr_name_lower(rr->name);
-					std::transform(rr_name_lower.begin(), rr_name_lower.end(), rr_name_lower.begin(), (int (*)(int))tolower);
+					string rr_name_normalized(rr->name);
 					
-					if (rr_name_lower == update_name_lower)
+					if (rr_name_normalized == update_name_normalized)
 					{
 						if (update->type == RR::TYPESTAR || rr->type == update->type)
 						{
@@ -390,12 +380,10 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 			{
 				const Zone *z = *ziter;
 
-				string qrrlower(qrr->name), zlower(z->name);
-				std::transform(qrrlower.begin(), qrrlower.end(), qrrlower.begin(), (int (*)(int))tolower);
-				std::transform(zlower.begin(), zlower.end(), zlower.begin(), (int (*)(int))tolower);
+				string qrr_name(qrr->name), z_name(z->name);
 
-				string::size_type zpos = qrrlower.rfind(zlower);
-				if (zpos == string::npos || zpos != (qrrlower.length() - zlower.length()))
+				string::size_type zpos = qrr_name.rfind(z_name);
+				if (zpos == string::npos || zpos != (qrr_name.length() - z_name.length()))
 					continue;
 
 				if (z->acl.size())
@@ -436,12 +424,11 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 				{
 					RR *rr = *rriter;
 
-					string rrlower(rr->name);
-					std::transform(rrlower.begin(), rrlower.end(), rrlower.begin(), (int (*)(int))tolower);
+					string rr_name(rr->name);
 					
 					if (
 						(rr->type == qrr->type && 
-						0 == rrlower.compare(0, qrrlower.length(), qrrlower)
+						0 == rr_name.compare(0, qrr_name.length(), qrr_name)
 						) ||
 						(qrr->type == RR::TYPESTAR)
 						)
@@ -455,7 +442,7 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 
 						if (qrr->type != RR::TYPESTAR)
 							break;
-					} else if (rr->type == RR::NS && 0 == rrlower.compare(0, qrrlower.length(), qrrlower)) {
+					} else if (rr->type == RR::NS && 0 == rr_name.compare(0, qrr_name.length(), qrr_name)) {
 						rrNs = rr;
 					}
 				}

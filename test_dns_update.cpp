@@ -774,3 +774,97 @@ TEST_CASE("Zone file with explicit names works correctly", "[zonefile][3e5a586]"
         }
     }
 }
+
+// Test case-insensitive DNS name handling
+TEST_CASE("DNS names are stored lowercase", "[case][refactor]")
+{
+    char packet[100];
+    memset(packet, 0, sizeof(packet));
+    
+    unsigned int offset = 0;
+    
+    // Name with mixed case: "WwW.ExAmPlE.CoM"
+    packet[0] = 3;
+    memcpy(packet + 1, "WwW", 3);
+    packet[4] = 7;
+    memcpy(packet + 5, "ExAmPlE", 7);
+    packet[12] = 3;
+    memcpy(packet + 13, "CoM", 3);
+    packet[16] = 0;
+    
+    // Type: A
+    *(uint16_t*)(packet + 17) = htons(1);
+    
+    // Class: IN
+    *(uint16_t*)(packet + 19) = htons(1);
+    
+    // TTL: 3600
+    *(uint32_t*)(packet + 21) = htonl(3600);
+    
+    // RDLEN: 4
+    *(uint16_t*)(packet + 25) = htons(4);
+    
+    // RDATA: 192.168.1.1
+    packet[27] = 192;
+    packet[28] = 168;
+    packet[29] = 1;
+    packet[30] = 1;
+    
+    RR* rr = RR::createByType(RR::A);
+    bool result = rr->unpack(packet, sizeof(packet), offset, false);
+    
+    CHECK(result);
+    // Name should be stored lowercase
+    CHECK(rr->name == "www.example.com");
+    
+    delete rr;
+}
+
+TEST_CASE("Zone file names are stored lowercase", "[case][refactor]")
+{
+    t_data zoneData;
+    
+    // Mixed case zone name and hostnames
+    zoneData.push_back("$ORIGIN Example.COM.");
+    zoneData.push_back("WwW     IN  A       192.168.1.1");
+    zoneData.push_back("MaIl    IN  A       192.168.1.2");
+    
+    ZoneFileLoader loader;
+    t_zones zones;
+    
+    bool result = loader.load(zoneData, zones);
+    
+    CHECK(result);
+    REQUIRE(zones.size() == 1);
+    
+    Zone* zone = zones[0];
+    
+    // Zone name should be lowercase
+    CHECK(zone->name == "example.com.");
+    
+    REQUIRE(zone->rrs.size() == 2);
+    
+    // Record names should be lowercase
+    CHECK(zone->rrs[0]->name == "www.example.com.");
+    CHECK(zone->rrs[1]->name == "mail.example.com.");
+}
+
+TEST_CASE("Case-insensitive comparison works without tolower", "[case][refactor]")
+{
+    // Test that names stored lowercase can be compared directly
+    t_data zoneData;
+    
+    zoneData.push_back("$ORIGIN test.org.");
+    zoneData.push_back("host    IN  A       10.0.0.1");
+    
+    ZoneFileLoader loader;
+    t_zones zones;
+    loader.load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    REQUIRE(zones[0]->rrs.size() == 1);
+    
+    // Direct string comparison should work (both already lowercase)
+    std::string query_name = dns_name_tolower("HoSt.TeSt.OrG.");
+    CHECK(zones[0]->rrs[0]->name == query_name);
+}

@@ -6,9 +6,19 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
+#include <cctype>
 
 unsigned char hex2bin(const std::string& hex);
 std::string bin2hex(unsigned char bin);
+
+// Utility function to lowercase DNS names (case-insensitive per RFC)
+inline std::string dns_name_tolower(const std::string& name) {
+	std::string result = name;
+	std::transform(result.begin(), result.end(), result.begin(), 
+	               [](unsigned char c){ return std::tolower(c); });
+	return result;
+}
 
 #define SC(x) case x: return #x
 #define SC2(x, y) case x: return #y;
