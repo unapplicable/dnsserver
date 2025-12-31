@@ -89,9 +89,10 @@ public:
 		}
 	}
 
-protected:	
 	static void packName(char *data, unsigned int len, unsigned int& offset, std::string name, bool terminate = true);
 	static std::string unpackName(char *data, unsigned int len, unsigned int& offset);
+
+protected:	
 };
 
 std::ostream& operator <<(std::ostream& os, const RR::RRType rrt);

@@ -173,8 +173,8 @@ RR* RR::createByType(RRType type)
 			return new RRDHCID();
 
 		default:
-			std::cerr << "tried to create cname of type " << type << std::endl;
-			throw std::exception();
+			// For unknown RR types, return a base RR object
+			// It will store and forward the rdata as-is
 			return new RR();
 	}
 }

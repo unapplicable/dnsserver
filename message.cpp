@@ -77,10 +77,24 @@ bool Message::unpack(char *data, unsigned int len, unsigned int& offset)
 
 		for (unsigned short i = 0; i < counts[rrtype]; i++)
 		{
-			RR *r = new RR();
+			// First, peek at the RR to determine its type
+			unsigned int peek_offset = iter;
+			std::string rr_name = RR::unpackName(data, len, peek_offset);
+			
+			if (peek_offset + 1 >= len)
+				return false;
+			
+			RR::RRType rr_type = (RR::RRType)ntohs((short &)data[peek_offset]);
+			
+			// Create the correct RR subclass based on type
+			RR *r = RR::createByType(rr_type);
+			
 			try
 			{
-				if (!r->unpack(data, len, iter, query && rrtype == 0))
+				// For QUERY messages: only section 0 (Question) is query-style
+				// For UPDATE messages: only section 0 (Zone) is query-style
+				bool isQueryStyleRR = (query && rrtype == 0);
+				if (!r->unpack(data, len, iter, isQueryStyleRR))
 				{
 					delete r;
 					return false;
