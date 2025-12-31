@@ -8,6 +8,10 @@
 #include "rra.h"
 #include "zoneFileLoader.h"
 #include "zone.h"
+#include "zone_database.h"
+#include "zone_authority.h"
+#include "update_processor.h"
+#include "query_processor.h"
 
 // Test 1: DNS name pointer following bug fix
 // Bug: unpackName was incrementing offset for EVERY pointer encountered
@@ -1175,4 +1179,483 @@ TEST_CASE("QUERY finds NS record with mixed case", "[usecase][query][ns]")
     if (ns_rr) {
         CHECK(ns_rr->name == "sub.parent.com.");
     }
+}
+
+// ===== Tests using specialized components directly (refactored SUTs) =====
+
+TEST_CASE("ZoneAuthority::findZoneForName finds zone by exact match", "[logic][findzone]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN example.com.");
+    zoneData.push_back("test    IN  A       192.168.1.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    
+    // Test with mixed case
+    ZoneLookupResult result = ZoneAuthority(zones).findZoneForName(dns_name_tolower("ExAmPlE.CoM."), 0);
+    
+    CHECK(result.found);
+    CHECK(result.authorized);
+    CHECK(result.zone != nullptr);
+    if (result.zone) {
+        CHECK(result.zone->name == "example.com.");
+    }
+}
+
+TEST_CASE("ZoneAuthority::findZoneForName finds zone by suffix match", "[logic][findzone]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN example.org.");
+    zoneData.push_back("www     IN  A       10.0.0.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    // Query for subdomain should match parent zone
+    ZoneLookupResult result = ZoneAuthority(zones).findZoneForName(dns_name_tolower("sub.example.org"), 0);
+    
+    CHECK(result.found);
+    CHECK(result.authorized);
+}
+
+TEST_CASE("ZoneAuthority::findZoneForName returns not found for non-existent zone", "[logic][findzone]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN example.com.");
+    zoneData.push_back("test    IN  A       192.168.1.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    ZoneLookupResult result = ZoneAuthority(zones).findZoneForName(dns_name_tolower("notfound.org"), 0);
+    
+    CHECK_FALSE(result.found);
+    CHECK_FALSE(result.authorized);
+    CHECK(result.zone == nullptr);
+    CHECK(result.error_message == "Zone not found or not authoritative");
+}
+
+TEST_CASE("UpdateProcessor::checkPrerequisites validates name exists (ANY TYPESTAR)", "[logic][prereq]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN test.org.");
+    zoneData.push_back("host    IN  A       10.0.0.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    // Create prerequisite: host.test.org ANY TYPESTAR (name must exist)
+    Message request;
+    RR* prereq = new RR();
+    prereq->name = dns_name_tolower("HoSt.TeSt.OrG.");  // Mixed case
+    prereq->rrclass = RR::CLASSANY;
+    prereq->type = RR::TYPESTAR;
+    request.an.push_back(prereq);
+    
+    std::string error;
+    ZoneDatabase zonedb(zones[0]);
+    bool result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    
+    CHECK(result);
+    CHECK(error.empty());
+}
+
+TEST_CASE("UpdateProcessor::checkPrerequisites fails when name doesn't exist", "[logic][prereq]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN test.org.");
+    zoneData.push_back("host    IN  A       10.0.0.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    // Create prerequisite for non-existent name
+    Message request;
+    RR* prereq = new RR();
+    prereq->name = dns_name_tolower("NoTeXiSt.TeSt.OrG.");  // Mixed case
+    prereq->rrclass = RR::CLASSANY;
+    prereq->type = RR::TYPESTAR;
+    request.an.push_back(prereq);
+    
+    std::string error;
+    ZoneDatabase zonedb(zones[0]);
+    bool result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    
+    CHECK_FALSE(result);
+    CHECK(error == "Prerequisite failed - name not in use");
+}
+
+TEST_CASE("UpdateProcessor::checkPrerequisites validates specific RR type exists", "[logic][prereq]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN example.net.");
+    zoneData.push_back("www     IN  A       192.168.1.1");
+    zoneData.push_back("www     IN  MX      10 mail.example.net.");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    // Check for A record with mixed case
+    Message request;
+    RR* prereq = RR::createByType(RR::A);
+    prereq->name = dns_name_tolower("WwW.ExAmPlE.NeT.");
+    prereq->rrclass = RR::CLASSANY;
+    prereq->type = RR::A;
+    request.an.push_back(prereq);
+    
+    std::string error;
+    ZoneDatabase zonedb(zones[0]);
+    bool result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    
+    CHECK(result);
+}
+
+TEST_CASE("UpdateProcessor::checkPrerequisites validates name not in use (NONE TYPESTAR)", "[logic][prereq]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN domain.com.");
+    zoneData.push_back("existing    IN  A       10.0.0.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    // Check that "new" name doesn't exist
+    Message request;
+    RR* prereq = new RR();
+    prereq->name = dns_name_tolower("NeW.DoMaIn.CoM.");  // Mixed case
+    prereq->rrclass = RR::CLASSNONE;
+    prereq->type = RR::TYPESTAR;
+    request.an.push_back(prereq);
+    
+    std::string error;
+    ZoneDatabase zonedb(zones[0]);
+    bool result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    
+    CHECK(result);
+}
+
+TEST_CASE("UpdateProcessor::applyUpdates adds new RR", "[logic][update]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN test.com.");
+    zoneData.push_back("old     IN  A       10.0.0.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    REQUIRE(zones[0]->rrs.size() == 1);
+    
+    // Add new record with mixed case
+    Message request;
+    RR* update = RR::createByType(RR::A);
+    update->name = dns_name_tolower("NeW.TeSt.CoM.");
+    update->rrclass = RR::CLASSIN;
+    update->type = RR::A;
+    update->ttl = 3600;
+    request.ns.push_back(update);
+    
+    std::string error;
+    ZoneDatabase zonedb(zones[0]);
+    bool result = UpdateProcessor::applyUpdates(&request, zonedb, error);
+    
+    CHECK(result);
+    CHECK(zones[0]->rrs.size() == 2);
+    
+    // Verify the new record was added with lowercase name
+    bool found = false;
+    for (size_t i = 0; i < zones[0]->rrs.size(); ++i) {
+        if (zones[0]->rrs[i]->name == "new.test.com.") {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("UpdateProcessor::applyUpdates deletes RR by name and type (CLASSANY)", "[logic][update]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN example.org.");
+    zoneData.push_back("delete  IN  A       192.168.1.1");
+    zoneData.push_back("keep    IN  A       192.168.1.2");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    REQUIRE(zones[0]->rrs.size() == 2);
+    
+    // Delete with mixed case
+    Message request;
+    RR* update = RR::createByType(RR::A);
+    update->name = dns_name_tolower("DeLeTe.ExAmPlE.OrG.");
+    update->rrclass = RR::CLASSANY;
+    update->type = RR::A;
+    request.ns.push_back(update);
+    
+    std::string error;
+    ZoneDatabase zonedb(zones[0]);
+    UpdateProcessor::applyUpdates(&request, zonedb, error);
+    
+    CHECK(zones[0]->rrs.size() == 1);
+    CHECK(zones[0]->rrs[0]->name == "keep.example.org.");
+}
+
+TEST_CASE("QueryProcessor::findMatches finds RR by name and type", "[logic][query]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN query.com.");
+    zoneData.push_back("server  IN  A       10.1.2.3");
+    zoneData.push_back("client  IN  A       10.1.2.4");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    // Query with mixed case
+    RR query_rr;
+    query_rr.name = dns_name_tolower("SeRvEr.QuErY.CoM.");
+    query_rr.type = RR::A;
+    
+    std::vector<RR*> matches;
+    RR* ns_record = nullptr;
+    
+    ZoneDatabase zonedb(zones[0]);
+    QueryProcessor::findMatches(&query_rr, zonedb, matches, &ns_record);
+    
+    CHECK(matches.size() >= 1);
+    if (matches.size() > 0) {
+        CHECK(matches[0]->name == "server.query.com.");
+    }
+}
+
+TEST_CASE("QueryProcessor::findMatches finds all RRs for ANY query", "[logic][query]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN multi.net.");
+    zoneData.push_back("host    IN  A       1.2.3.4");
+    zoneData.push_back("host    IN  MX      10 mail.multi.net.");
+    zoneData.push_back("host    IN  TXT     \"test\"");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    REQUIRE(zones[0]->rrs.size() == 3);
+    
+    // ANY query with mixed case
+    RR query_rr;
+    query_rr.name = dns_name_tolower("HoSt.MuLtI.NeT.");
+    query_rr.type = RR::TYPESTAR;
+    
+    std::vector<RR*> matches;
+    RR* ns_record = nullptr;
+    
+    ZoneDatabase zonedb(zones[0]);
+    QueryProcessor::findMatches(&query_rr, zonedb, matches, &ns_record);
+    
+    CHECK(matches.size() == 3);  // Should match all three records
+}
+
+// ===== Tests for refactored architecture components =====
+
+TEST_CASE("ZoneDatabase::findRecordsByName finds matching records", "[architecture][zonedb]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN db.test.");
+    zoneData.push_back("host    IN  A       10.0.0.1");
+    zoneData.push_back("host    IN  MX      10 mail.db.test.");
+    zoneData.push_back("other   IN  A       10.0.0.2");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    ZoneDatabase zonedb(zones[0]);
+    
+    // Find all records for "host"
+    std::vector<RR*> matches = zonedb.findRecordsByName(dns_name_tolower("host.db.test."));
+    CHECK(matches.size() == 2);
+    
+    // Find only A records for "host"
+    std::vector<RR*> a_records = zonedb.findRecordsByName(dns_name_tolower("host.db.test."), RR::A);
+    CHECK(a_records.size() == 1);
+    CHECK(a_records[0]->type == RR::A);
+}
+
+TEST_CASE("ZoneDatabase::hasRecordWithName checks existence", "[architecture][zonedb]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN exists.test.");
+    zoneData.push_back("present IN  A       10.0.0.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    ZoneDatabase zonedb(zones[0]);
+    
+    CHECK(zonedb.hasRecordWithName(dns_name_tolower("present.exists.test.")));
+    CHECK_FALSE(zonedb.hasRecordWithName(dns_name_tolower("absent.exists.test.")));
+}
+
+TEST_CASE("ZoneDatabase::addRecord and removeRecords work correctly", "[architecture][zonedb]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN modify.test.");
+    zoneData.push_back("initial IN  A       10.0.0.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    ZoneDatabase zonedb(zones[0]);
+    
+    // Add a record
+    RR* new_rr = RR::createByType(RR::A);
+    new_rr->name = dns_name_tolower("new.modify.test.");
+    new_rr->type = RR::A;
+    zonedb.addRecord(new_rr);
+    
+    CHECK(zonedb.hasRecordWithName(dns_name_tolower("new.modify.test.")));
+    
+    // Remove it
+    int removed = zonedb.removeRecords(dns_name_tolower("new.modify.test."), RR::A);
+    CHECK(removed == 1);
+    CHECK_FALSE(zonedb.hasRecordWithName(dns_name_tolower("new.modify.test.")));
+}
+
+TEST_CASE("ZoneAuthority::findZoneForName with multiple zones", "[architecture][authority]")
+{
+    t_data zoneData1, zoneData2;
+    zoneData1.push_back("$ORIGIN zone1.test.");
+    zoneData1.push_back("host    IN  A       10.0.0.1");
+    
+    zoneData2.push_back("$ORIGIN zone2.test.");
+    zoneData2.push_back("server  IN  A       10.0.0.2");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData1, zones);
+    ZoneFileLoader::load(zoneData2, zones);
+    REQUIRE(zones.size() == 2);
+    
+    ZoneAuthority authority(zones);
+    
+    // Find first zone
+    ZoneLookupResult result1 = authority.findZoneForName(dns_name_tolower("zone1.test."), 0);
+    CHECK(result1.found);
+    CHECK(result1.authorized);
+    CHECK(result1.zone->name == "zone1.test.");
+    
+    // Find second zone
+    ZoneLookupResult result2 = authority.findZoneForName(dns_name_tolower("zone2.test."), 0);
+    CHECK(result2.found);
+    CHECK(result2.authorized);
+    CHECK(result2.zone->name == "zone2.test.");
+}
+
+TEST_CASE("UpdateProcessor::checkPrerequisites through ZoneDatabase", "[architecture][update]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN prereq.test.");
+    zoneData.push_back("exists  IN  A       10.0.0.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    ZoneDatabase zonedb(zones[0]);
+    
+    // Create prerequisite: name exists
+    Message request;
+    RR* prereq = new RR();
+    prereq->name = dns_name_tolower("exists.prereq.test.");
+    prereq->rrclass = RR::CLASSANY;
+    prereq->type = RR::TYPESTAR;
+    request.an.push_back(prereq);
+    
+    std::string error;
+    bool result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    
+    CHECK(result);
+    CHECK(error.empty());
+}
+
+TEST_CASE("QueryProcessor::findMatches through ZoneDatabase", "[architecture][query]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN query.test.");
+    zoneData.push_back("target  IN  A       192.168.1.1");
+    zoneData.push_back("target  IN  MX      10 mail.query.test.");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    ZoneDatabase zonedb(zones[0]);
+    
+    // Query for A record
+    RR query_rr;
+    query_rr.name = dns_name_tolower("target.query.test.");
+    query_rr.type = RR::A;
+    
+    std::vector<RR*> matches;
+    QueryProcessor::findMatches(&query_rr, zonedb, matches, NULL);
+    
+    CHECK(matches.size() >= 1);
+    if (matches.size() > 0) {
+        CHECK(matches[0]->type == RR::A);
+    }
+}
+
+TEST_CASE("Architecture: Complete UPDATE flow through components", "[architecture][integration]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN flow.test.");
+    zoneData.push_back("old     IN  A       10.0.0.1");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    // 1. Use ZoneAuthority to find zone
+    ZoneAuthority authority(zones);
+    ZoneLookupResult lookup = authority.findZoneForName(dns_name_tolower("flow.test."), 0);
+    REQUIRE(lookup.found);
+    REQUIRE(lookup.authorized);
+    
+    // 2. Use ZoneDatabase for operations
+    ZoneDatabase zonedb(lookup.zone);
+    
+    // 3. Create UPDATE with prerequisite
+    Message request;
+    RR* prereq = new RR();
+    prereq->name = dns_name_tolower("old.flow.test.");
+    prereq->rrclass = RR::CLASSANY;
+    prereq->type = RR::TYPESTAR;
+    request.an.push_back(prereq);
+    
+    RR* update = RR::createByType(RR::A);
+    update->name = dns_name_tolower("new.flow.test.");
+    update->rrclass = RR::CLASSIN;
+    update->type = RR::A;
+    update->ttl = 3600;
+    request.ns.push_back(update);
+    
+    // 4. Check prerequisites with UpdateProcessor
+    std::string error;
+    bool prereq_result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    CHECK(prereq_result);
+    
+    // 5. Apply updates with UpdateProcessor
+    bool update_result = UpdateProcessor::applyUpdates(&request, zonedb, error);
+    CHECK(update_result);
+    
+    // 6. Verify with ZoneDatabase
+    CHECK(zonedb.hasRecordWithName(dns_name_tolower("new.flow.test.")));
 }

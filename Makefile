@@ -7,10 +7,14 @@ TEST_LDFLAGS = -lpthread -lCatch2Main -lCatch2
 
 # Source files
 SERVER_SOURCES = dnsserver.cpp message.cpp rr.cpp zoneFileLoader.cpp \
+                 zone_database.cpp zone_authority.cpp \
+                 update_processor.cpp query_processor.cpp \
                  rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                  rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
 
 TEST_SOURCES = test_dns_update.cpp message.cpp rr.cpp zoneFileLoader.cpp \
+               zone_database.cpp zone_authority.cpp \
+               update_processor.cpp query_processor.cpp \
                rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
 

@@ -20,6 +20,13 @@ inline std::string dns_name_tolower(const std::string& name) {
 	return result;
 }
 
+// Utility function to normalize DNS name (remove trailing dot)
+inline std::string normalize_dns_name(const std::string& name) {
+	if (!name.empty() && name[name.length()-1] == '.')
+		return name.substr(0, name.length()-1);
+	return name;
+}
+
 #define SC(x) case x: return #x
 #define SC2(x, y) case x: return #y;
 #define MATCHSTRING(haystack, needle, match) if (haystack == #needle) return match;

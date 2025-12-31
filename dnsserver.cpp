@@ -17,6 +17,10 @@ using namespace std;
 #include "rr.h"
 #include "rrsoa.h"
 #include "zoneFileLoader.h"
+#include "zone_authority.h"
+#include "zone_database.h"
+#include "update_processor.h"
+#include "query_processor.h"
 
 std::string VERSION("$Id$");
 
@@ -71,158 +75,29 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 	cout << "UPDATE: Processing zone " << zone_rr->name << endl;
 	
 	{
-		string zone_name_normalized(zone_rr->name);
+		// Find zone using ZoneAuthority
+		ZoneAuthority authority(zones);
+		ZoneLookupResult lookup = authority.findZoneForName(zone_rr->name, fromaddr);
 		
-		// Normalize: remove trailing dot if present
-		if (!zone_name_normalized.empty() && zone_name_normalized[zone_name_normalized.length()-1] == '.')
-			zone_name_normalized = zone_name_normalized.substr(0, zone_name_normalized.length()-1);
-		
-		Zone *target_zone = NULL;
-		for (vector<Zone *>::const_iterator ziter = zones.begin(); ziter != zones.end(); ++ziter)
+		if (!lookup.found || !lookup.authorized)
 		{
-			Zone *z = *ziter;
-			string znormalized(z->name);
-			
-			// Normalize: remove trailing dot if present
-			if (!znormalized.empty() && znormalized[znormalized.length()-1] == '.')
-				znormalized = znormalized.substr(0, znormalized.length()-1);
-			
-			if (zone_name_normalized == znormalized || 
-			    (zone_name_normalized.length() >= znormalized.length() && 
-			     zone_name_normalized.substr(zone_name_normalized.length() - znormalized.length()) == znormalized))
-			{
-				if (z->acl.size())
-				{
-					bool authorized = false;
-					for (vector<AclEntry>::const_iterator i = z->acl.begin(); i != z->acl.end(); ++i)
-					{
-						if (i->subnet.match(fromaddr))
-						{
-							authorized = true;
-							target_zone = i->zone ? i->zone : z;
-							break;
-						}
-					}
-					
-					if (!authorized)
-					{
-						cout << "UPDATE: Access denied by ACL" << endl;
-						reply->rcode = Message::CODEREFUSED;
-						goto send_response;
-					}
-				}
-				else
-				{
-					target_zone = z;
-				}
-				break;
-			}
-		}
-		
-		if (!target_zone)
-		{
-			cout << "UPDATE: Zone not found or not authoritative" << endl;
+			cout << "UPDATE: " << lookup.error_message << endl;
 			reply->rcode = Message::CODEREFUSED;
 			goto send_response;
 		}
 		
+		Zone *target_zone = lookup.zone;
 		cout << "UPDATE: Target zone found: " << target_zone->name << endl;
 		cout << "UPDATE: Prerequisites: " << request->an.size() << ", Updates: " << request->ns.size() << endl;
 		
-		for (vector<RR *>::const_iterator iter = request->an.begin(); iter != request->an.end(); ++iter)
+		// Check prerequisites using UpdateProcessor
+		ZoneDatabase zonedb(target_zone);
+		string prereq_error;
+		if (!UpdateProcessor::checkPrerequisites(request, zonedb, prereq_error))
 		{
-			RR *prereq = *iter;
-			string prereq_name_normalized(prereq->name);
-			
-			// Normalize: remove trailing dot if present
-			if (!prereq_name_normalized.empty() && prereq_name_normalized[prereq_name_normalized.length()-1] == '.')
-				prereq_name_normalized = prereq_name_normalized.substr(0, prereq_name_normalized.length()-1);
-			
-			cout << "  Prereq: " << prereq->name << " class=" << (int)prereq->rrclass << " type=" << (int)prereq->type << endl;
-			
-			if (prereq->rrclass == RR::CLASSANY)
-			{
-				if (prereq->type == RR::SOA)
-				{
-					continue;
-				}
-				else if (prereq->type == RR::TYPESTAR)
-				{
-					bool found = false;
-					for (vector<RR *>::const_iterator rriter = target_zone->rrs.begin(); rriter != target_zone->rrs.end(); ++rriter)
-					{
-						RR *rr = *rriter;
-						string rr_name_normalized(rr->name);
-						
-						// Normalize: remove trailing dot if present
-						if (!rr_name_normalized.empty() && rr_name_normalized[rr_name_normalized.length()-1] == '.')
-							rr_name_normalized = rr_name_normalized.substr(0, rr_name_normalized.length()-1);
-						
-						if (rr_name_normalized == prereq_name_normalized)
-						{
-							found = true;
-							break;
-						}
-					}
-					if (!found)
-					{
-						cout << "UPDATE: Prerequisite failed - name does not exist" << endl;
-						reply->rcode = Message::CODENAMEERROR;
-						goto send_response;
-					}
-				}
-				else
-				{
-					bool found = false;
-					for (vector<RR *>::const_iterator rriter = target_zone->rrs.begin(); rriter != target_zone->rrs.end(); ++rriter)
-					{
-						RR *rr = *rriter;
-						string rr_name_normalized(rr->name);
-						if (rr_name_normalized == prereq_name_normalized && rr->type == prereq->type)
-						{
-							found = true;
-							break;
-						}
-					}
-					if (!found)
-					{
-						cout << "UPDATE: Prerequisite failed - RRset does not exist" << endl;
-						reply->rcode = Message::CODENAMEERROR;
-						goto send_response;
-					}
-				}
-			}
-			else if (prereq->rrclass == RR::CLASSNONE)
-			{
-				if (prereq->type == RR::TYPESTAR)
-				{
-					for (vector<RR *>::const_iterator rriter = target_zone->rrs.begin(); rriter != target_zone->rrs.end(); ++rriter)
-					{
-						RR *rr = *rriter;
-						string rr_name_normalized(rr->name);
-						if (rr_name_normalized == prereq_name_normalized)
-						{
-							cout << "UPDATE: Prerequisite failed - name is in use" << endl;
-							reply->rcode = Message::CODEREFUSED;
-							goto send_response;
-						}
-					}
-				}
-				else
-				{
-					for (vector<RR *>::const_iterator rriter = target_zone->rrs.begin(); rriter != target_zone->rrs.end(); ++rriter)
-					{
-						RR *rr = *rriter;
-						string rr_name_normalized(rr->name);
-						if (rr_name_normalized == prereq_name_normalized && rr->type == prereq->type)
-						{
-							cout << "UPDATE: Prerequisite failed - RRset exists" << endl;
-							reply->rcode = Message::CODEREFUSED;
-							goto send_response;
-						}
-					}
-				}
-			}
+			cout << "UPDATE: " << prereq_error << endl;
+			reply->rcode = Message::CODENAMEERROR;
+			goto send_response;
 		}
 		
 		cout << "UPDATE: All prerequisites passed" << endl;
@@ -230,82 +105,12 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 		// CRITICAL SECTION START: Protect all zone modifications
 		pthread_mutex_lock(&g_zone_mutex);
 		
-		for (vector<RR *>::const_iterator iter = request->ns.begin(); iter != request->ns.end(); ++iter)
-		{
-			RR *update = *iter;
-			string update_name_normalized(update->name);
-			
-			cout << "  Update: " << update->name << " class=" << (int)update->rrclass << " type=" << (int)update->type << " ttl=" << update->ttl << endl;
-			
-			if (update->rrclass == RR::CLASSIN && update->ttl > 0)
-			{
-				// CRITICAL: Must use clone() to do proper deep copy of all fields
-				// Creating new RR and copying fields manually causes memory corruption
-				// because rdata and subclass fields are shallow-copied
-				RR *new_rr = update->clone();
-				new_rr->query = false;
-				
-				target_zone->rrs.push_back(new_rr);
-				cout << "    Added record" << endl;
-			}
-			else if (update->rrclass == RR::CLASSNONE)
-			{
-				vector<RR *>::iterator rriter = target_zone->rrs.begin();
-				while (rriter != target_zone->rrs.end())
-				{
-					RR *rr = *rriter;
-					string rr_name_normalized(rr->name);
-					
-					if (rr_name_normalized == update_name_normalized && rr->type == update->type)
-					{
-						if (update->rdlen == 0 || rr->rdata == update->rdata)
-						{
-							delete rr;
-							rriter = target_zone->rrs.erase(rriter);
-							cout << "    Deleted record" << endl;
-							continue;
-						}
-					}
-					++rriter;
-				}
-			}
-			else if (update->rrclass == RR::CLASSANY)
-			{
-				vector<RR *>::iterator rriter = target_zone->rrs.begin();
-				while (rriter != target_zone->rrs.end())
-				{
-					RR *rr = *rriter;
-					string rr_name_normalized(rr->name);
-					
-					if (rr_name_normalized == update_name_normalized)
-					{
-						if (update->type == RR::TYPESTAR || rr->type == update->type)
-						{
-							delete rr;
-							rriter = target_zone->rrs.erase(rriter);
-							cout << "    Deleted record (class ANY)" << endl;
-							continue;
-						}
-					}
-					++rriter;
-				}
-			}
-		}
+		// Apply updates using UpdateProcessor
+		string update_error;
+		UpdateProcessor::applyUpdates(request, zonedb, update_error);
 		
-		for (vector<RR *>::iterator rriter = target_zone->rrs.begin(); rriter != target_zone->rrs.end(); ++rriter)
-		{
-			RR *rr = *rriter;
-			if (rr->type == RR::SOA)
-			{
-				RRSoa *soa = dynamic_cast<RRSoa*>(rr);
-				if (soa)
-				{
-					soa->serial++;
-					cout << "UPDATE: Incremented SOA serial to " << soa->serial << endl;
-				}
-				break;
-			}
-		}
+		// Increment SOA serial
+		ZoneAuthority::incrementSerial(target_zone);
 		
 		pthread_mutex_unlock(&g_zone_mutex);
 		// CRITICAL SECTION END
