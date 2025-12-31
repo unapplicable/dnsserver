@@ -30,7 +30,7 @@ public:
 	std::string rdata;
 
 	static RR* createByType(RRType type);
-	bool unpack(char *data, unsigned int len, unsigned int& offset, bool isQuery);
+	virtual bool unpack(char *data, unsigned int len, unsigned int& offset, bool isQuery);
 	void pack(char *data, unsigned int len, unsigned int& offset);
 	virtual void packContents(char* data, unsigned int len, unsigned int& offset);
 	virtual std::ostream& dumpContents(std::ostream& os) const;

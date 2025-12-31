@@ -432,18 +432,71 @@ TEST_CASE("Production-like UPDATE message (124 bytes)", "[integration][082512b]"
     // 1. Pointer chain handling - the pointers to "local" and "pc1.local" parse correctly
     // 2. TTL 64-bit portability - TTL values of 0, 3600, 86400 parse correctly
     // 3. RDLEN 64-bit portability - RDLEN values of 0, 4, 16 parse correctly
+    // 4. Virtual unpack - RRDHCID::unpack is called through base pointer
     CHECK(result);
     CHECK(msg.opcode == Message::UPDATE);
     CHECK(msg.qd.size() == 1);
     CHECK(msg.an.size() == 1);
     CHECK(msg.ns.size() == 2);
     
-    // Verify DHCID record was created and rdata is populated
+    // Verify DHCID record was created and both rdata and identifier are populated
     RRDHCID* dhcid = dynamic_cast<RRDHCID*>(msg.ns[1]);
     CHECK(dhcid != nullptr);
     if (dhcid) {
-        // The rdata field contains the DHCID data
+        // Both rdata and identifier should be populated now that unpack is virtual
         CHECK(dhcid->rdata.length() == 16);
-        // Note: identifier field would need RR::unpack to be virtual to be populated automatically
+        CHECK(dhcid->identifier.length() == 16);
+        CHECK(dhcid->identifier == dhcid->rdata);
     }
+}
+
+// Test 6: RR::unpack should be virtual to allow subclass overrides
+// This tests that when calling unpack through a base class pointer,
+// the derived class's unpack method is invoked
+TEST_CASE("RRDHCID unpack called through base pointer (virtual method)", "[virtual][dhcid]")
+{
+    char packet[100];
+    memset(packet, 0, sizeof(packet));
+    
+    unsigned int offset = 0;
+    
+    // Name: "host"
+    packet[0] = 4;
+    memcpy(packet + 1, "host", 4);
+    packet[5] = 0;
+    
+    // Type: DHCID (49)
+    *(uint16_t*)(packet + 6) = htons(49);
+    
+    // Class: IN
+    *(uint16_t*)(packet + 8) = htons(1);
+    
+    // TTL: 86400
+    *(uint32_t*)(packet + 10) = htonl(86400);
+    
+    // RDLEN: 8 bytes
+    *(uint16_t*)(packet + 14) = htons(8);
+    
+    // RDATA: DHCID identifier
+    const char* dhcid_data = "DHCIDABC";
+    memcpy(packet + 16, dhcid_data, 8);
+    
+    // Create RRDHCID through base class pointer (simulates Message::unpack)
+    RR* base_ptr = RR::createByType(RR::DHCID);
+    bool result = base_ptr->unpack(packet, sizeof(packet), offset, false);
+    
+    CHECK(result);
+    CHECK(base_ptr->rdlen == 8);
+    CHECK(base_ptr->rdata.length() == 8);
+    
+    // Cast to RRDHCID and verify identifier was populated
+    RRDHCID* dhcid = dynamic_cast<RRDHCID*>(base_ptr);
+    REQUIRE(dhcid != nullptr);
+    
+    // This is the critical test: identifier should be populated
+    // because RRDHCID::unpack should be called (requires virtual)
+    CHECK(dhcid->identifier.length() == 8);
+    CHECK(dhcid->identifier == std::string(dhcid_data, 8));
+    
+    delete base_ptr;
 }
