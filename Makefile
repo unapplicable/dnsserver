@@ -1,8 +1,9 @@
 # Makefile for DNS Server with UPDATE support
 
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++11 -g -DLINUX
+CXXFLAGS = -Wall -Wextra -std=c++14 -g -DLINUX
 LDFLAGS = -lpthread
+TEST_LDFLAGS = -lpthread -lCatch2Main -lCatch2
 
 # Source files
 SERVER_SOURCES = dnsserver.cpp message.cpp rr.cpp zoneFileLoader.cpp \
@@ -34,7 +35,7 @@ test: $(TEST_BIN)
 	./$(TEST_BIN)
 
 $(TEST_BIN): $(TEST_OBJECTS)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(TEST_LDFLAGS)
 
 # Build object files
 %.o: %.cpp
