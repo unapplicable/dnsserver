@@ -7,6 +7,8 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 {
 	Zone* z = NULL;
 	Zone* parent = NULL;
+	std::string previousName;  // Track previous record name for inheritance
+	
 	for (t_data::const_iterator di = data.begin(); di != data.end(); ++di)
 	{
 		// strip comments
@@ -40,6 +42,7 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 			z = new Zone();
 			parent = z;
 			z->name = tokens[1];
+			previousName.clear();  // Reset previous name on new zone
 			continue;
 		} else
 		if (tokens[0] == "$ACL")
@@ -61,9 +64,25 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 			RR::RRType rrtype = RR::RRTypeFromString(tokens[2]);
 			RR* rr = RR::createByType(rrtype);
 
-			// append name of zone when missing terminating .
-			if (!tokens[0].empty() && tokens[0][tokens[0].length() - 1] != '.')
-				tokens[0] += "." + z->name + ".";
+			// Handle empty name field - inherit from previous record
+			if (tokens[0].empty())
+			{
+				tokens[0] = previousName;
+			}
+			else
+			{
+				// append name of zone when missing terminating .
+				if (tokens[0][tokens[0].length() - 1] != '.')
+				{
+					// Zone name already includes trailing dot, so just add dot before it
+					tokens[0] += ".";
+					tokens[0] += z->name;
+				}
+				
+				// Save this name for potential inheritance
+				previousName = tokens[0];
+			}
+			
 			rr->fromString(tokens);
 
 			if (rr != NULL && z == NULL)

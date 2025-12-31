@@ -10,7 +10,7 @@ SERVER_SOURCES = dnsserver.cpp message.cpp rr.cpp zoneFileLoader.cpp \
                  rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                  rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
 
-TEST_SOURCES = test_dns_update.cpp message.cpp rr.cpp \
+TEST_SOURCES = test_dns_update.cpp message.cpp rr.cpp zoneFileLoader.cpp \
                rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
 

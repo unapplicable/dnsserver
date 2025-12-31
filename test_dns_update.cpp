@@ -6,6 +6,8 @@
 #include "rr.h"
 #include "rrdhcid.h"
 #include "rra.h"
+#include "zoneFileLoader.h"
+#include "zone.h"
 
 // Test 1: DNS name pointer following bug fix
 // Bug: unpackName was incrementing offset for EVERY pointer encountered
@@ -693,4 +695,82 @@ TEST_CASE("QUERY message question section is query-style", "[query][0eb4fe3]")
     CHECK(msg.qd[0]->type == RR::A);
     CHECK(msg.qd[0]->rrclass == RR::CLASSIN);
     // Query section doesn't have TTL or RDATA
+}
+
+TEST_CASE("Zone file with empty name field inherits from previous line", "[zonefile][3e5a586]")
+{
+    t_data zoneData;
+    
+    // Typical zone file format with continuation lines
+    zoneData.push_back("$ORIGIN example.com.");
+    zoneData.push_back("www     IN  A       192.168.1.1");
+    zoneData.push_back("        IN  A       192.168.1.2");  // Empty name, should inherit "www"
+    zoneData.push_back("mail    IN  A       192.168.1.10");
+    zoneData.push_back("        IN  A       192.168.1.11");  // Empty name, should inherit "mail"
+    
+    ZoneFileLoader loader;
+    t_zones zones;
+    
+    bool result = loader.load(zoneData, zones);
+    
+    CHECK(result);
+    CHECK(zones.size() == 1);
+    
+    if (zones.size() > 0) {
+        Zone* zone = zones[0];
+        CHECK(zone->name == "example.com.");
+        
+        // Should have 4 RRs total (www A, www A, mail A, mail A)
+        INFO("Number of RRs: " << zone->rrs.size());
+        CHECK(zone->rrs.size() == 4);
+        
+        if (zone->rrs.size() >= 2) {
+            // First two should all be for "www.example.com."
+            INFO("RR[0] name: " << zone->rrs[0]->name);
+            CHECK(zone->rrs[0]->name == "www.example.com.");
+            CHECK(zone->rrs[0]->type == RR::A);
+            
+            INFO("RR[1] name: " << zone->rrs[1]->name);
+            CHECK(zone->rrs[1]->name == "www.example.com.");
+            CHECK(zone->rrs[1]->type == RR::A);
+        }
+        
+        if (zone->rrs.size() >= 4) {
+            // Third and fourth should be for "mail.example.com."
+            INFO("RR[2] name: " << zone->rrs[2]->name);
+            CHECK(zone->rrs[2]->name == "mail.example.com.");
+            CHECK(zone->rrs[2]->type == RR::A);
+            
+            INFO("RR[3] name: " << zone->rrs[3]->name);
+            CHECK(zone->rrs[3]->name == "mail.example.com.");
+            CHECK(zone->rrs[3]->type == RR::A);
+        }
+    }
+}
+
+TEST_CASE("Zone file with explicit names works correctly", "[zonefile][3e5a586]")
+{
+    t_data zoneData;
+    
+    zoneData.push_back("$ORIGIN test.org.");
+    zoneData.push_back("host1   IN  A       10.0.0.1");
+    zoneData.push_back("host2   IN  A       10.0.0.2");
+    
+    ZoneFileLoader loader;
+    t_zones zones;
+    
+    bool result = loader.load(zoneData, zones);
+    
+    CHECK(result);
+    CHECK(zones.size() == 1);
+    
+    if (zones.size() > 0) {
+        Zone* zone = zones[0];
+        CHECK(zone->rrs.size() == 2);
+        
+        if (zone->rrs.size() >= 2) {
+            CHECK(zone->rrs[0]->name == "host1.test.org.");
+            CHECK(zone->rrs[1]->name == "host2.test.org.");
+        }
+    }
 }
