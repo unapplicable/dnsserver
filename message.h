@@ -10,7 +10,7 @@
 class Message
 {
 public:
-	enum Opcode {QUERY = 0, IQUERY = 1, STATUS = 2};
+	enum Opcode {QUERY = 0, IQUERY = 1, STATUS = 2, UPDATE = 5};
 	enum RCode {CODENOERROR , CODEFORMATERROR, CODESERVERFAILURE, CODENAMEERROR, CODENOTIMPLEMENTED, CODEREFUSED};
 
 	unsigned short id;
@@ -34,7 +34,7 @@ public:
 	{
 		switch (o)
 		{ 
-			SC(QUERY); SC(IQUERY); SC(STATUS);
+			SC(QUERY); SC(IQUERY); SC(STATUS); SC(UPDATE);
 			default: 
 				std::stringstream ss;
 				ss << "unk(" << std::hex << (int)o << ")";

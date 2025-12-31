@@ -45,13 +45,16 @@ bool Message::unpack(char *data, unsigned int len, unsigned int& offset)
 	unsigned short flags = ntohs((unsigned short &)data[iter]);
 	iter += 2;
 
-	query = (flags & 0x0001) == 0;
-	opcode = (Opcode)((flags & 0x000E) >> 1);
-	authoritative = (flags & 0x0020) != 0;
-	truncation = (flags & 0x0040) != 0;
-	recursiondesired = (flags & 0x0080) != 0;
-	recursionavailable = (flags & 0x0100) != 0;
-	rcode = (RCode)((flags & 0xF000) >> 12);
+	// DNS flags after ntohs() on little-endian keep network bit positions
+	// Standard clients send with opcode in bits 11-14 (network order)
+	// After ntohs(), these stay at bits 11-14 on little-endian
+	query = (flags & 0x8000) == 0;
+	opcode = (Opcode)((flags & 0x7800) >> 11);
+	authoritative = (flags & 0x0400) != 0;
+	truncation = (flags & 0x0200) != 0;
+	recursiondesired = (flags & 0x0100) != 0;
+	recursionavailable = (flags & 0x0080) != 0;
+	rcode = (RCode)((flags & 0x000F));
 
 	if (iter + 2 * 4 > len)
 		return false;
@@ -105,7 +108,7 @@ void Message::pack(char *data, unsigned int len, unsigned int& offset) const
 
 	unsigned short flags = 0;
 	flags |= (query == false) << 15;
-	flags |= (opcode & 0x07) << 11;
+	flags |= (opcode & 0x0F) << 11;  // 4 bits for opcode (to support UPDATE=5)
 	flags |= authoritative << 10;
 	flags |= truncation ? 0x0200 : 0; 
 	flags |= recursiondesired ? 0x0100 : 0;
