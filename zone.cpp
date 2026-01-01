@@ -84,18 +84,6 @@ int Zone::removeRecords(const string& name, RR::RRType type, const string& rdata
     return removed_count;
 }
 
-RR* Zone::findSOARecord() const
-{
-    for (vector<RR*>::const_iterator it = rrs.begin(); it != rrs.end(); ++it)
-    {
-        RR* rr = *it;
-        if (rr->type == RR::SOA)
-            return rr;
-    }
-    
-    return NULL;
-}
-
 bool Zone::incrementSerial()
 {
     for (vector<RR*>::iterator it = rrs.begin(); it != rrs.end(); ++it)

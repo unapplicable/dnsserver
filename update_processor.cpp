@@ -60,7 +60,7 @@ bool UpdateProcessor::checkPrerequisites(const Message* request,
 
 bool UpdateProcessor::applyUpdates(const Message* request,
                                   Zone& zone,
-                                  string& error_message)
+                                  string& /* error_message */)
 {
     for (vector<RR*>::const_iterator iter = request->ns.begin(); iter != request->ns.end(); ++iter)
     {
@@ -84,6 +84,9 @@ bool UpdateProcessor::applyUpdates(const Message* request,
             zone.addRecord(new_rr);
         }
     }
+    
+    // Increment SOA serial after successful update
+    zone.incrementSerial();
     
     return true;
 }

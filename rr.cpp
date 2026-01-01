@@ -66,13 +66,13 @@ std::ostream& RR::dumpContents(std::ostream& os) const
 	return os;	
 }
 
-void RR::packName(char *data, unsigned int len, unsigned int& offset, std::string name, bool terminate)
+void RR::packName(char *data, unsigned int /* len */, unsigned int& offset, std::string name, bool terminate)
 {
 	std::string part;
 	do
 	{
 		std::string::size_type dot;
-		if ((dot = name.find('.')) != -1)
+		if ((dot = name.find('.')) != std::string::npos)
 		{
 			part = name.substr(0, dot);
 			name.erase(0, dot + 1);
@@ -202,12 +202,12 @@ void RR::fromString(const std::vector<std::string>& tokens)
 	fromStringContents(std::vector<std::string>(tokens.begin() + 3, tokens.end()));
 }
 
-void RR::fromStringContents(const std::vector<std::string>& tokens)
+void RR::fromStringContents(const std::vector<std::string>& /* tokens */)
 {
 	throw std::exception();
 }
 
-void RR::packContents(char* data, unsigned int len, unsigned int& offset)
+void RR::packContents(char* data, unsigned int /* len */, unsigned int& offset)
 {
 	rdata.copy(&data[offset], rdlen);
 	offset += rdlen;

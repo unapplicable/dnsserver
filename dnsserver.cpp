@@ -176,9 +176,6 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 		string update_error;
 		UpdateProcessor::applyUpdates(request, *target_zone, update_error);
 		
-		// Increment SOA serial
-		target_zone->incrementSerial();
-		
 		pthread_mutex_unlock(&g_zone_mutex);
 		// CRITICAL SECTION END
 		
@@ -440,7 +437,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
 				continue;
 			}
 			msglen = ntohs(msglen);
-			if (msglen == 0 || msglen > 65535)
+			if (msglen == 0)
 			{
 				closesocket_compat(client);
 				continue;

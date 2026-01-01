@@ -59,7 +59,6 @@ public:
 	int removeRecords(const std::string& name, 
 	                  RR::RRType type = RR::RRUNDEF,
 	                  const std::string& rdata = "");
-	RR* findSOARecord() const;
 	const std::vector<RR*>& getAllRecords() const { return rrs; }
 	
 	// SOA serial management
