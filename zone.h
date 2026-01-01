@@ -49,7 +49,6 @@ class Zone
 public:
 	std::string name;
 	std::vector<AclEntry> acl;
-	std::vector<RR *> rrs;
 	
 	// Record operations (merged from ZoneDatabase)
 	std::vector<RR*> findRecordsByName(const std::string& name, 
@@ -65,6 +64,9 @@ public:
 	
 	// SOA serial management
 	bool incrementSerial();
+
+private:
+	std::vector<RR *> rrs;
 };
 
 typedef std::vector<Zone*> t_zones;

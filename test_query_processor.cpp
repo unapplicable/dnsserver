@@ -25,7 +25,7 @@ void test_case_insensitive_matching() {
     // A records store IP in rdata as binary
     unsigned long addr1 = inet_addr("192.0.2.1");
     rr1->rdata.append(reinterpret_cast<char*>(&addr1), 4);
-    z.rrs.push_back(rr1);
+    z.addRecord(rr1);
     
     RRA *rr2 = new RRA();
     rr2->name = "host.example.com.";
@@ -34,7 +34,7 @@ void test_case_insensitive_matching() {
     rr2->ttl = 300;
     unsigned long addr2 = inet_addr("192.0.2.2");
     rr2->rdata.append(reinterpret_cast<char*>(&addr2), 4);
-    z.rrs.push_back(rr2);
+    z.addRecord(rr2);
     
     // Zone z already available
     
@@ -46,8 +46,9 @@ void test_case_insensitive_matching() {
     
     cout << "  Query name: '" << query_rr.name << "'" << endl;
     cout << "  Zone records:" << endl;
-    for (size_t i = 0; i < z.rrs.size(); i++) {
-        cout << "    [" << i << "] name='" << z.rrs[i]->name << "' type=" << z.rrs[i]->type << endl;
+    const vector<RR*>& records = z.getAllRecords();
+    for (size_t i = 0; i < records.size(); i++) {
+        cout << "    [" << i << "] name='" << records[i]->name << "' type=" << records[i]->type << endl;
     }
     
     vector<RR*> matches;
@@ -72,7 +73,7 @@ void test_wildcard_query() {
     rr1->ttl = 300;
     unsigned long addr = inet_addr("192.0.2.1");
     rr1->rdata.append(reinterpret_cast<char*>(&addr), 4);
-    z.rrs.push_back(rr1);
+    z.addRecord(rr1);
     
     RRCNAME *rr2 = new RRCNAME();
     rr2->name = "test.example.com.";
@@ -80,7 +81,7 @@ void test_wildcard_query() {
     rr2->rrclass = RR::CLASSIN;
     rr2->ttl = 300;
     rr2->rdata = "target.example.com.";
-    z.rrs.push_back(rr2);
+    z.addRecord(rr2);
     
     // Zone z already available
     
@@ -111,7 +112,7 @@ void test_ns_record_detection() {
     ns_rr->rrclass = RR::CLASSIN;
     ns_rr->ttl = 300;
     ns_rr->rdata = "ns1.example.com.";
-    z.rrs.push_back(ns_rr);
+    z.addRecord(ns_rr);
     
     // Zone z already available
     

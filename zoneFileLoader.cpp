@@ -91,7 +91,7 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 			if (rr != NULL)
 			{
 				std::cerr << "[" << z->name << "] " << *rr << std::endl;
-				z->rrs.push_back(rr);
+				z->addRecord(rr);
 				rr = NULL;
 			}
 		} catch (std::exception& ex)
