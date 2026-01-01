@@ -333,7 +333,7 @@ void daemonize(int uid, int gid)
 #endif
 }
 
-void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
+void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port, bool should_daemonize)
 {
 	SOCKET udp_s[100], tcp_s[100];
 	int numSockets = 0;
@@ -431,7 +431,8 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
 		freeaddrinfo(addrinfo);
 	}
 
-	daemonize(uid, gid);
+	if (should_daemonize)
+		daemonize(uid, gid);
 	
 	while (true)
 	{
@@ -529,12 +530,13 @@ int main(int argc, char* argv[])
 
 	if (argc < 3)
 	{
-		cerr << "Usage: " << argv[0] << " [-p port] [-u uid] [-g gid] zonefile IP1 [IP2 ...]" << endl;
+		cerr << "Usage: " << argv[0] << " [-p port] [-u uid] [-g gid] [-d] zonefile IP1 [IP2 ...]" << endl;
 		return 1;
 	}
 
 	// Parse options first
 	int uid = -1, gid = -1, port = 53;
+	bool should_daemonize = false;
 	int arg = 1;
 	for (; arg < argc; ) {
 		if (argv[arg] == std::string("-p") || argv[arg] == std::string("--port")) {
@@ -548,6 +550,10 @@ int main(int argc, char* argv[])
 		if (argv[arg] == std::string("-g")) {
 			gid = atoi(argv[arg + 1]);
 			arg += 2;
+		} else
+		if (argv[arg] == std::string("-d") || argv[arg] == std::string("--daemon")) {
+			should_daemonize = true;
+			arg += 1;
 		} else
 			break;  // First non-option is zonefile
 	}
@@ -578,7 +584,7 @@ int main(int argc, char* argv[])
 	}
 
 	// IPs start at arg+1
-	serverloop(&argv[arg+1], zones, uid, gid, port);
+	serverloop(&argv[arg+1], zones, uid, gid, port, should_daemonize);
 	return 0;
 }
 
