@@ -5,6 +5,10 @@
 
 using namespace std;
 
+ZoneAuthority::ZoneAuthority(const vector<Zone*>& zones) : zones_(zones)
+{
+}
+
 ZoneLookupResult ZoneAuthority::findZoneForName(const string& zone_name, 
                                                  unsigned long client_addr) const
 {
@@ -70,24 +74,3 @@ ZoneLookupResult ZoneAuthority::findZoneForName(const string& zone_name,
     result.error_message = "Zone not found or not authoritative";
     return result;
 }
-
-bool ZoneAuthority::incrementSerial(Zone* zone)
-{
-    for (vector<RR*>::iterator it = zone->rrs.begin(); it != zone->rrs.end(); ++it)
-    {
-        RR* rr = *it;
-        if (rr->type == RR::SOA)
-        {
-            RRSoa* soa = dynamic_cast<RRSoa*>(rr);
-            if (soa)
-            {
-                soa->serial++;
-                cout << "SOA serial incremented to " << soa->serial << endl;
-                return true;
-            }
-        }
-    }
-    
-    return false;
-}
-

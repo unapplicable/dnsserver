@@ -2,111 +2,133 @@
 
 #include "zone.h"
 #include "rr.h"
+#include <iostream>
+
+std::string ZoneFileLoader::stripComments(const std::string& line)
+{
+	std::string result = line;
+	std::string::size_type cmtpos = result.find('!');
+	if (cmtpos != std::string::npos)
+		result.erase(cmtpos);
+	return result;
+}
+
+std::vector<std::string> ZoneFileLoader::tokenize(const std::string& line)
+{
+	std::vector<std::string> tokens;
+	std::string remaining = line;
+	
+	while (remaining.length() != 0)
+	{
+		std::string::size_type seppos = remaining.find_first_of(" \t");
+		tokens.push_back(remaining.substr(0, seppos));
+		std::string::size_type nextpos = remaining.find_first_not_of(" \t", seppos);
+		remaining.erase(0, nextpos);
+	}
+	
+	return tokens;
+}
+
+void ZoneFileLoader::handleOrigin(const std::vector<std::string>& tokens, Zone*& parent, Zone*& current, t_zones& zones, std::string& previousName)
+{
+	if (parent != NULL)
+	{
+		zones.push_back(parent);
+		parent = NULL;
+	}
+	Zone* z = new Zone();
+	parent = z;
+	z->name = dns_name_tolower(tokens[1]);
+	current = z;
+	previousName.clear();
+}
+
+void ZoneFileLoader::handleACL(const std::vector<std::string>& tokens, Zone* parent, Zone*& current)
+{
+	Zone* acl = new Zone();
+	acl->name = parent->name;
+	for (std::string::size_type i = 1; i < tokens.size(); ++i)
+	{
+		AclEntry e = {Subnet(tokens[i]), acl};
+		parent->acl.push_back(e);
+	}
+	current = acl;
+}
+
+std::string ZoneFileLoader::processRecordName(const std::string& name, const Zone* zone, const std::string& previousName)
+{
+	if (name.empty())
+		return previousName;
+	
+	if (name[name.length() - 1] != '.')
+	{
+		return name + "." + zone->name;
+	}
+	
+	return name;
+}
+
+void ZoneFileLoader::handleResourceRecord(const std::vector<std::string>& tokens, Zone* current, std::string& previousName)
+{
+	std::vector<std::string> mutableTokens = tokens;
+	
+	RR::RRType rrtype = RR::RRTypeFromString(tokens[2]);
+	RR* rr = RR::createByType(rrtype);
+	
+	mutableTokens[0] = processRecordName(tokens[0], current, previousName);
+	
+	if (!tokens[0].empty())
+		previousName = mutableTokens[0];
+	
+	rr->fromString(mutableTokens);
+	
+	std::cerr << "[" << current->name << "] " << *rr << std::endl;
+	current->addRecord(rr);
+}
 
 bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 {
 	Zone* z = NULL;
 	Zone* parent = NULL;
-	std::string previousName;  // Track previous record name for inheritance
+	std::string previousName;
 	
 	for (t_data::const_iterator di = data.begin(); di != data.end(); ++di)
 	{
-		// strip comments
-		std::string line = *di;
-		
-		std::string::size_type cmtpos;
-		if ((cmtpos = line.find('!')) != std::string::npos ||
-			(cmtpos = line.find('!')) != std::string::npos)
-			line.erase(cmtpos);
-		// tokenize
-		std::vector<std::string> tokens;
-		while (line.length() != 0)
-		{
-			// find sep
-			std::string::size_type seppos = line.find_first_of(" \t");
-			tokens.push_back(line.substr(0, seppos));
-			std::string::size_type nextpos = line.find_first_not_of(" \t", seppos);
-			line.erase(0, nextpos);
-		};
+		std::string line = stripComments(*di);
+		std::vector<std::string> tokens = tokenize(line);
 
 		if (tokens.size() < 2)
 			continue;
 
 		if (tokens[0] == "$ORIGIN")
 		{
-			if (parent != NULL)
-			{
-				zones.push_back(parent);
-				parent = NULL;
-			}
-			z = new Zone();
-			parent = z;
-			z->name = dns_name_tolower(tokens[1]);
-			previousName.clear();  // Reset previous name on new zone
+			handleOrigin(tokens, parent, z, zones, previousName);
 			continue;
-		} else
+		}
+		
 		if (tokens[0] == "$ACL")
 		{
-			Zone* acl = new Zone();
-			acl->name = parent->name;
-			for (std::string::size_type i = 1; i < tokens.size(); ++i)
-			{
-				AclEntry e = {Subnet(tokens[i]), acl};
-				parent->acl.push_back(e);
-			}
-
-			z = acl;
+			handleACL(tokens, parent, z);
 			continue;
 		}
 
 		try
 		{
-			RR::RRType rrtype = RR::RRTypeFromString(tokens[2]);
-			RR* rr = RR::createByType(rrtype);
-
-			// Handle empty name field - inherit from previous record
-			if (tokens[0].empty())
-			{
-				tokens[0] = previousName;
-			}
-			else
-			{
-				// append name of zone when missing terminating .
-				if (tokens[0][tokens[0].length() - 1] != '.')
-				{
-					// Zone name already includes trailing dot, so just add dot before it
-					tokens[0] += ".";
-					tokens[0] += z->name;
-				}
-				
-				// Save this name for potential inheritance
-				previousName = tokens[0];
-			}
-			
-			rr->fromString(tokens);
-
-			if (rr != NULL && z == NULL)
+			if (z == NULL)
 				return false;
-
-			if (rr != NULL)
-			{
-				std::cerr << "[" << z->name << "] " << *rr << std::endl;
-				z->rrs.push_back(rr);
-				rr = NULL;
-			}
-		} catch (std::exception& ex)
+			
+			handleResourceRecord(tokens, z, previousName);
+		}
+		catch (std::exception& ex)
 		{
-			std::cerr << "error loading rr, line =" ;
-			for (std::vector<std::string>::const_iterator it = tokens.begin();
-				it != tokens.end();
-				++it)
+			std::cerr << "error loading rr, line =";
+			for (std::vector<std::string>::const_iterator it = tokens.begin(); it != tokens.end(); ++it)
 				std::cerr << " " << *it;
 			std::cerr << std::endl;
 			throw;
 		}
 	}
 
-	// add last zone
 	if (parent != NULL)
 	{
 		zones.push_back(parent);

@@ -3,11 +3,11 @@
 using namespace std;
 
 void QueryProcessor::findMatches(const RR* query_rr,
-                                const ZoneDatabase& zonedb,
+                                const Zone& zone,
                                 vector<RR*>& matches,
                                 RR** ns_record)
 {
-    const vector<RR*>& all_records = zonedb.getAllRecords();
+    const vector<RR*>& all_records = zone.getAllRecords();
     
     for (vector<RR*>::const_iterator rriter = all_records.begin(); 
          rriter != all_records.end(); ++rriter)

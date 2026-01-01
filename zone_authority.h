@@ -19,14 +19,11 @@ struct ZoneLookupResult {
 // Responsible for zone selection and ACL checking
 class ZoneAuthority {
 public:
-    explicit ZoneAuthority(const std::vector<Zone*>& zones) : zones_(zones) {}
+    explicit ZoneAuthority(const std::vector<Zone*>& zones);
     
     // Find zone by name, checking ACL if present
     ZoneLookupResult findZoneForName(const std::string& zone_name, 
                                      unsigned long client_addr) const;
-    
-    // Increment SOA serial for a zone
-    static bool incrementSerial(Zone* zone);
     
 private:
     const std::vector<Zone*>& zones_;

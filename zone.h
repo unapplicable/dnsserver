@@ -4,8 +4,8 @@
 #include <string>
 #include <vector>
 #include "socket.h"
+#include "rr.h"
 
-class RR;
 class Zone;
 
 struct Subnet
@@ -46,10 +46,26 @@ struct AclEntry
 
 class Zone
 {
-	public:
-		std::string name;
-		std::vector<AclEntry> acl;
-		std::vector<RR *> rrs;
+public:
+	std::string name;
+	std::vector<AclEntry> acl;
+	
+	// Record operations (merged from ZoneDatabase)
+	std::vector<RR*> findRecordsByName(const std::string& name, 
+	                                   RR::RRType type = RR::RRUNDEF) const;
+	bool hasRecordWithName(const std::string& name) const;
+	bool hasRecordWithNameAndType(const std::string& name, RR::RRType type) const;
+	void addRecord(RR* record);
+	int removeRecords(const std::string& name, 
+	                  RR::RRType type = RR::RRUNDEF,
+	                  const std::string& rdata = "");
+	const std::vector<RR*>& getAllRecords() const { return rrs; }
+	
+	// SOA serial management
+	bool incrementSerial();
+
+private:
+	std::vector<RR *> rrs;
 };
 
 typedef std::vector<Zone*> t_zones;

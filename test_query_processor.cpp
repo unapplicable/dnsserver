@@ -2,7 +2,6 @@
 #include <cassert>
 #include <cstring>
 #include "query_processor.h"
-#include "zone_database.h"
 #include "zone.h"
 #include "rra.h"
 #include "rrcname.h"
@@ -26,7 +25,7 @@ void test_case_insensitive_matching() {
     // A records store IP in rdata as binary
     unsigned long addr1 = inet_addr("192.0.2.1");
     rr1->rdata.append(reinterpret_cast<char*>(&addr1), 4);
-    z.rrs.push_back(rr1);
+    z.addRecord(rr1);
     
     RRA *rr2 = new RRA();
     rr2->name = "host.example.com.";
@@ -35,9 +34,9 @@ void test_case_insensitive_matching() {
     rr2->ttl = 300;
     unsigned long addr2 = inet_addr("192.0.2.2");
     rr2->rdata.append(reinterpret_cast<char*>(&addr2), 4);
-    z.rrs.push_back(rr2);
+    z.addRecord(rr2);
     
-    ZoneDatabase zonedb(&z);
+    // Zone z already available
     
     // Query with different case (but names are already lowercased in real parsing)
     RR query_rr;
@@ -47,12 +46,13 @@ void test_case_insensitive_matching() {
     
     cout << "  Query name: '" << query_rr.name << "'" << endl;
     cout << "  Zone records:" << endl;
-    for (size_t i = 0; i < z.rrs.size(); i++) {
-        cout << "    [" << i << "] name='" << z.rrs[i]->name << "' type=" << z.rrs[i]->type << endl;
+    const vector<RR*>& records = z.getAllRecords();
+    for (size_t i = 0; i < records.size(); i++) {
+        cout << "    [" << i << "] name='" << records[i]->name << "' type=" << records[i]->type << endl;
     }
     
     vector<RR*> matches;
-    QueryProcessor::findMatches(&query_rr, zonedb, matches);
+    QueryProcessor::findMatches(&query_rr, z, matches);
     
     // Should match both records
     cout << "  Found " << matches.size() << " matches (expected 2)" << endl;
@@ -73,7 +73,7 @@ void test_wildcard_query() {
     rr1->ttl = 300;
     unsigned long addr = inet_addr("192.0.2.1");
     rr1->rdata.append(reinterpret_cast<char*>(&addr), 4);
-    z.rrs.push_back(rr1);
+    z.addRecord(rr1);
     
     RRCNAME *rr2 = new RRCNAME();
     rr2->name = "test.example.com.";
@@ -81,9 +81,9 @@ void test_wildcard_query() {
     rr2->rrclass = RR::CLASSIN;
     rr2->ttl = 300;
     rr2->rdata = "target.example.com.";
-    z.rrs.push_back(rr2);
+    z.addRecord(rr2);
     
-    ZoneDatabase zonedb(&z);
+    // Zone z already available
     
     // Query with TYPESTAR
     RR query_rr;
@@ -92,7 +92,7 @@ void test_wildcard_query() {
     query_rr.rrclass = RR::CLASSIN;
     
     vector<RR*> matches;
-    QueryProcessor::findMatches(&query_rr, zonedb, matches);
+    QueryProcessor::findMatches(&query_rr, z, matches);
     
     // Should match both A and CNAME
     assert(matches.size() == 2);
@@ -112,9 +112,9 @@ void test_ns_record_detection() {
     ns_rr->rrclass = RR::CLASSIN;
     ns_rr->ttl = 300;
     ns_rr->rdata = "ns1.example.com.";
-    z.rrs.push_back(ns_rr);
+    z.addRecord(ns_rr);
     
-    ZoneDatabase zonedb(&z);
+    // Zone z already available
     
     // Query for something under subdomain
     RR query_rr;
@@ -124,7 +124,7 @@ void test_ns_record_detection() {
     
     vector<RR*> matches;
     RR *ns_record = NULL;
-    QueryProcessor::findMatches(&query_rr, zonedb, matches, &ns_record);
+    QueryProcessor::findMatches(&query_rr, z, matches, &ns_record);
     
     // Should find NS record for delegation
     assert(ns_record != NULL);

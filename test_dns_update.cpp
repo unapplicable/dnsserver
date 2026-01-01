@@ -8,7 +8,6 @@
 #include "rra.h"
 #include "zoneFileLoader.h"
 #include "zone.h"
-#include "zone_database.h"
 #include "zone_authority.h"
 #include "update_processor.h"
 #include "query_processor.h"
@@ -725,29 +724,29 @@ TEST_CASE("Zone file with empty name field inherits from previous line", "[zonef
         CHECK(zone->name == "example.com.");
         
         // Should have 4 RRs total (www A, www A, mail A, mail A)
-        INFO("Number of RRs: " << zone->rrs.size());
-        CHECK(zone->rrs.size() == 4);
+        INFO("Number of RRs: " << zone->getAllRecords().size());
+        CHECK(zone->getAllRecords().size() == 4);
         
-        if (zone->rrs.size() >= 2) {
+        if (zone->getAllRecords().size() >= 2) {
             // First two should all be for "www.example.com."
-            INFO("RR[0] name: " << zone->rrs[0]->name);
-            CHECK(zone->rrs[0]->name == "www.example.com.");
-            CHECK(zone->rrs[0]->type == RR::A);
+            INFO("RR[0] name: " << zone->getAllRecords()[0]->name);
+            CHECK(zone->getAllRecords()[0]->name == "www.example.com.");
+            CHECK(zone->getAllRecords()[0]->type == RR::A);
             
-            INFO("RR[1] name: " << zone->rrs[1]->name);
-            CHECK(zone->rrs[1]->name == "www.example.com.");
-            CHECK(zone->rrs[1]->type == RR::A);
+            INFO("RR[1] name: " << zone->getAllRecords()[1]->name);
+            CHECK(zone->getAllRecords()[1]->name == "www.example.com.");
+            CHECK(zone->getAllRecords()[1]->type == RR::A);
         }
         
-        if (zone->rrs.size() >= 4) {
+        if (zone->getAllRecords().size() >= 4) {
             // Third and fourth should be for "mail.example.com."
-            INFO("RR[2] name: " << zone->rrs[2]->name);
-            CHECK(zone->rrs[2]->name == "mail.example.com.");
-            CHECK(zone->rrs[2]->type == RR::A);
+            INFO("RR[2] name: " << zone->getAllRecords()[2]->name);
+            CHECK(zone->getAllRecords()[2]->name == "mail.example.com.");
+            CHECK(zone->getAllRecords()[2]->type == RR::A);
             
-            INFO("RR[3] name: " << zone->rrs[3]->name);
-            CHECK(zone->rrs[3]->name == "mail.example.com.");
-            CHECK(zone->rrs[3]->type == RR::A);
+            INFO("RR[3] name: " << zone->getAllRecords()[3]->name);
+            CHECK(zone->getAllRecords()[3]->name == "mail.example.com.");
+            CHECK(zone->getAllRecords()[3]->type == RR::A);
         }
     }
 }
@@ -769,12 +768,12 @@ TEST_CASE("Zone file with explicit names works correctly", "[zonefile][3e5a586]"
     CHECK(zones.size() == 1);
     
     if (zones.size() > 0) {
-        Zone* zone = zones[0];
-        CHECK(zone->rrs.size() == 2);
+        const std::vector<RR*>& records = zones[0]->getAllRecords();
+        CHECK(records.size() == 2);
         
-        if (zone->rrs.size() >= 2) {
-            CHECK(zone->rrs[0]->name == "host1.test.org.");
-            CHECK(zone->rrs[1]->name == "host2.test.org.");
+        if (records.size() >= 2) {
+            CHECK(records[0]->name == "host1.test.org.");
+            CHECK(records[1]->name == "host2.test.org.");
         }
     }
 }
@@ -846,11 +845,11 @@ TEST_CASE("Zone file names are stored lowercase", "[case][refactor]")
     // Zone name should be lowercase
     CHECK(zone->name == "example.com.");
     
-    REQUIRE(zone->rrs.size() == 2);
+    REQUIRE(zone->getAllRecords().size() == 2);
     
     // Record names should be lowercase
-    CHECK(zone->rrs[0]->name == "www.example.com.");
-    CHECK(zone->rrs[1]->name == "mail.example.com.");
+    CHECK(zone->getAllRecords()[0]->name == "www.example.com.");
+    CHECK(zone->getAllRecords()[1]->name == "mail.example.com.");
 }
 
 TEST_CASE("Case-insensitive comparison works without tolower", "[case][refactor]")
@@ -866,11 +865,11 @@ TEST_CASE("Case-insensitive comparison works without tolower", "[case][refactor]
     loader.load(zoneData, zones);
     
     REQUIRE(zones.size() == 1);
-    REQUIRE(zones[0]->rrs.size() == 1);
+    REQUIRE(zones[0]->getAllRecords().size() == 1);
     
     // Direct string comparison should work (both already lowercase)
     std::string query_name = dns_name_tolower("HoSt.TeSt.OrG.");
-    CHECK(zones[0]->rrs[0]->name == query_name);
+    CHECK(zones[0]->getAllRecords()[0]->name == query_name);
 }
 
 // ===== Tests for actual use cases that required lowercasing =====
@@ -947,7 +946,7 @@ TEST_CASE("UPDATE prerequisite matches existing RR with mixed case", "[usecase][
     ZoneFileLoader::load(zoneData, zones);
     
     REQUIRE(zones.size() == 1);
-    REQUIRE(zones[0]->rrs.size() == 2);
+    REQUIRE(zones[0]->getAllRecords().size() == 2);
     
     // Simulate prerequisite check with mixed case name
     std::string prereq_name = dns_name_tolower("HoSt.TeSt.OrG.");
@@ -956,9 +955,9 @@ TEST_CASE("UPDATE prerequisite matches existing RR with mixed case", "[usecase][
         prereq_name_normalized = prereq_name_normalized.substr(0, prereq_name_normalized.length()-1);
     
     bool found = false;
-    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    for (size_t i = 0; i < zones[0]->getAllRecords().size(); ++i)
     {
-        RR *rr = zones[0]->rrs[i];
+        RR *rr = zones[0]->getAllRecords()[i];
         std::string rr_name_normalized(rr->name);
         if (!rr_name_normalized.empty() && rr_name_normalized[rr_name_normalized.length()-1] == '.')
             rr_name_normalized = rr_name_normalized.substr(0, rr_name_normalized.length()-1);
@@ -994,9 +993,9 @@ TEST_CASE("UPDATE prerequisite matches RR type with mixed case", "[usecase][upda
         prereq_name_normalized = prereq_name_normalized.substr(0, prereq_name_normalized.length()-1);
     
     bool found = false;
-    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    for (size_t i = 0; i < zones[0]->getAllRecords().size(); ++i)
     {
-        RR *rr = zones[0]->rrs[i];
+        RR *rr = zones[0]->getAllRecords()[i];
         std::string rr_name_normalized(rr->name);
         if (!rr_name_normalized.empty() && rr_name_normalized[rr_name_normalized.length()-1] == '.')
             rr_name_normalized = rr_name_normalized.substr(0, rr_name_normalized.length()-1);
@@ -1024,7 +1023,7 @@ TEST_CASE("UPDATE delete finds RRs to delete with mixed case", "[usecase][update
     ZoneFileLoader::load(zoneData, zones);
     
     REQUIRE(zones.size() == 1);
-    REQUIRE(zones[0]->rrs.size() == 2);
+    REQUIRE(zones[0]->getAllRecords().size() == 2);
     
     // Find RR to delete with mixed case name
     std::string delete_name = dns_name_tolower("OlD.DoMaIn.CoM.");
@@ -1033,9 +1032,9 @@ TEST_CASE("UPDATE delete finds RRs to delete with mixed case", "[usecase][update
         delete_name_normalized = delete_name_normalized.substr(0, delete_name_normalized.length()-1);
     
     RR* found_rr = nullptr;
-    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    for (size_t i = 0; i < zones[0]->getAllRecords().size(); ++i)
     {
-        RR *rr = zones[0]->rrs[i];
+        RR *rr = zones[0]->getAllRecords()[i];
         std::string rr_name_normalized(rr->name);
         if (!rr_name_normalized.empty() && rr_name_normalized[rr_name_normalized.length()-1] == '.')
             rr_name_normalized = rr_name_normalized.substr(0, rr_name_normalized.length()-1);
@@ -1094,15 +1093,15 @@ TEST_CASE("QUERY finds RR with mixed case query", "[usecase][query][case]")
     ZoneFileLoader::load(zoneData, zones);
     
     REQUIRE(zones.size() == 1);
-    REQUIRE(zones[0]->rrs.size() == 2);
+    REQUIRE(zones[0]->getAllRecords().size() == 2);
     
     // Query with mixed case
     std::string qrr_name = dns_name_tolower("SeRvEr.TeSt.CoM.");
     
     bool found = false;
-    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    for (size_t i = 0; i < zones[0]->getAllRecords().size(); ++i)
     {
-        RR *rr = zones[0]->rrs[i];
+        RR *rr = zones[0]->getAllRecords()[i];
         if (rr->type == RR::A && 
             0 == rr->name.compare(0, qrr_name.length(), qrr_name))
         {
@@ -1128,15 +1127,15 @@ TEST_CASE("QUERY ANY type matches all RRs with mixed case", "[usecase][query][wi
     ZoneFileLoader::load(zoneData, zones);
     
     REQUIRE(zones.size() == 1);
-    REQUIRE(zones[0]->rrs.size() == 3);
+    REQUIRE(zones[0]->getAllRecords().size() == 3);
     
     // Query for ANY with mixed case
     std::string qrr_name = dns_name_tolower("HoSt.MuLtI.OrG.");
     
     int match_count = 0;
-    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    for (size_t i = 0; i < zones[0]->getAllRecords().size(); ++i)
     {
-        RR *rr = zones[0]->rrs[i];
+        RR *rr = zones[0]->getAllRecords()[i];
         if (0 == rr->name.compare(0, qrr_name.length(), qrr_name))
         {
             match_count++;
@@ -1164,9 +1163,9 @@ TEST_CASE("QUERY finds NS record with mixed case", "[usecase][query][ns]")
     std::string qrr_name = dns_name_tolower("SuB.PaReNt.CoM.");
     
     RR* ns_rr = nullptr;
-    for (size_t i = 0; i < zones[0]->rrs.size(); ++i)
+    for (size_t i = 0; i < zones[0]->getAllRecords().size(); ++i)
     {
-        RR *rr = zones[0]->rrs[i];
+        RR *rr = zones[0]->getAllRecords()[i];
         if (rr->type == RR::NS && 
             0 == rr->name.compare(0, qrr_name.length(), qrr_name))
         {
@@ -1257,8 +1256,8 @@ TEST_CASE("UpdateProcessor::checkPrerequisites validates name exists (ANY TYPEST
     request.an.push_back(prereq);
     
     std::string error;
-    ZoneDatabase zonedb(zones[0]);
-    bool result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    Zone* zone = zones[0];
+    bool result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     
     CHECK(result);
     CHECK(error.empty());
@@ -1283,8 +1282,8 @@ TEST_CASE("UpdateProcessor::checkPrerequisites fails when name doesn't exist", "
     request.an.push_back(prereq);
     
     std::string error;
-    ZoneDatabase zonedb(zones[0]);
-    bool result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    Zone* zone = zones[0];
+    bool result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     
     CHECK_FALSE(result);
     CHECK(error == "Prerequisite failed - name not in use");
@@ -1310,8 +1309,8 @@ TEST_CASE("UpdateProcessor::checkPrerequisites validates specific RR type exists
     request.an.push_back(prereq);
     
     std::string error;
-    ZoneDatabase zonedb(zones[0]);
-    bool result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    Zone* zone = zones[0];
+    bool result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     
     CHECK(result);
 }
@@ -1335,8 +1334,8 @@ TEST_CASE("UpdateProcessor::checkPrerequisites validates name not in use (NONE T
     request.an.push_back(prereq);
     
     std::string error;
-    ZoneDatabase zonedb(zones[0]);
-    bool result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    Zone* zone = zones[0];
+    bool result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     
     CHECK(result);
 }
@@ -1350,7 +1349,7 @@ TEST_CASE("UpdateProcessor::applyUpdates adds new RR", "[logic][update]")
     t_zones zones;
     ZoneFileLoader::load(zoneData, zones);
     REQUIRE(zones.size() == 1);
-    REQUIRE(zones[0]->rrs.size() == 1);
+    REQUIRE(zones[0]->getAllRecords().size() == 1);
     
     // Add new record with mixed case
     Message request;
@@ -1362,16 +1361,16 @@ TEST_CASE("UpdateProcessor::applyUpdates adds new RR", "[logic][update]")
     request.ns.push_back(update);
     
     std::string error;
-    ZoneDatabase zonedb(zones[0]);
-    bool result = UpdateProcessor::applyUpdates(&request, zonedb, error);
+    Zone* zone = zones[0];
+    bool result = UpdateProcessor::applyUpdates(&request, *zone, error);
     
     CHECK(result);
-    CHECK(zones[0]->rrs.size() == 2);
+    CHECK(zones[0]->getAllRecords().size() == 2);
     
     // Verify the new record was added with lowercase name
     bool found = false;
-    for (size_t i = 0; i < zones[0]->rrs.size(); ++i) {
-        if (zones[0]->rrs[i]->name == "new.test.com.") {
+    for (size_t i = 0; i < zones[0]->getAllRecords().size(); ++i) {
+        if (zones[0]->getAllRecords()[i]->name == "new.test.com.") {
             found = true;
             break;
         }
@@ -1389,7 +1388,7 @@ TEST_CASE("UpdateProcessor::applyUpdates deletes RR by name and type (CLASSANY)"
     t_zones zones;
     ZoneFileLoader::load(zoneData, zones);
     REQUIRE(zones.size() == 1);
-    REQUIRE(zones[0]->rrs.size() == 2);
+    REQUIRE(zones[0]->getAllRecords().size() == 2);
     
     // Delete with mixed case
     Message request;
@@ -1400,11 +1399,12 @@ TEST_CASE("UpdateProcessor::applyUpdates deletes RR by name and type (CLASSANY)"
     request.ns.push_back(update);
     
     std::string error;
-    ZoneDatabase zonedb(zones[0]);
-    UpdateProcessor::applyUpdates(&request, zonedb, error);
+    Zone* zone = zones[0];
+    UpdateProcessor::applyUpdates(&request, *zone, error);
     
-    CHECK(zones[0]->rrs.size() == 1);
-    CHECK(zones[0]->rrs[0]->name == "keep.example.org.");
+    const std::vector<RR*>& records1405 = zones[0]->getAllRecords();
+    CHECK(records1405.size() == 1);
+    CHECK(records1405[0]->name == "keep.example.org.");
 }
 
 TEST_CASE("QueryProcessor::findMatches finds RR by name and type", "[logic][query]")
@@ -1426,8 +1426,8 @@ TEST_CASE("QueryProcessor::findMatches finds RR by name and type", "[logic][quer
     std::vector<RR*> matches;
     RR* ns_record = nullptr;
     
-    ZoneDatabase zonedb(zones[0]);
-    QueryProcessor::findMatches(&query_rr, zonedb, matches, &ns_record);
+    Zone* zone = zones[0];
+    QueryProcessor::findMatches(&query_rr, *zone, matches, &ns_record);
     
     CHECK(matches.size() >= 1);
     if (matches.size() > 0) {
@@ -1446,7 +1446,7 @@ TEST_CASE("QueryProcessor::findMatches finds all RRs for ANY query", "[logic][qu
     t_zones zones;
     ZoneFileLoader::load(zoneData, zones);
     REQUIRE(zones.size() == 1);
-    REQUIRE(zones[0]->rrs.size() == 3);
+    REQUIRE(zones[0]->getAllRecords().size() == 3);
     
     // ANY query with mixed case
     RR query_rr;
@@ -1456,15 +1456,15 @@ TEST_CASE("QueryProcessor::findMatches finds all RRs for ANY query", "[logic][qu
     std::vector<RR*> matches;
     RR* ns_record = nullptr;
     
-    ZoneDatabase zonedb(zones[0]);
-    QueryProcessor::findMatches(&query_rr, zonedb, matches, &ns_record);
+    Zone* zone = zones[0];
+    QueryProcessor::findMatches(&query_rr, *zone, matches, &ns_record);
     
     CHECK(matches.size() == 3);  // Should match all three records
 }
 
 // ===== Tests for refactored architecture components =====
 
-TEST_CASE("ZoneDatabase::findRecordsByName finds matching records", "[architecture][zonedb]")
+TEST_CASE("Zone::findRecordsByName finds matching records", "[architecture][zone]")
 {
     t_data zoneData;
     zoneData.push_back("$ORIGIN db.test.");
@@ -1476,19 +1476,19 @@ TEST_CASE("ZoneDatabase::findRecordsByName finds matching records", "[architectu
     ZoneFileLoader::load(zoneData, zones);
     REQUIRE(zones.size() == 1);
     
-    ZoneDatabase zonedb(zones[0]);
+    Zone* zone = zones[0];
     
     // Find all records for "host"
-    std::vector<RR*> matches = zonedb.findRecordsByName(dns_name_tolower("host.db.test."));
+    std::vector<RR*> matches = zone->findRecordsByName(dns_name_tolower("host.db.test."));
     CHECK(matches.size() == 2);
     
     // Find only A records for "host"
-    std::vector<RR*> a_records = zonedb.findRecordsByName(dns_name_tolower("host.db.test."), RR::A);
+    std::vector<RR*> a_records = zone->findRecordsByName(dns_name_tolower("host.db.test."), RR::A);
     CHECK(a_records.size() == 1);
     CHECK(a_records[0]->type == RR::A);
 }
 
-TEST_CASE("ZoneDatabase::hasRecordWithName checks existence", "[architecture][zonedb]")
+TEST_CASE("Zone::hasRecordWithName checks existence", "[architecture][zone]")
 {
     t_data zoneData;
     zoneData.push_back("$ORIGIN exists.test.");
@@ -1498,13 +1498,13 @@ TEST_CASE("ZoneDatabase::hasRecordWithName checks existence", "[architecture][zo
     ZoneFileLoader::load(zoneData, zones);
     REQUIRE(zones.size() == 1);
     
-    ZoneDatabase zonedb(zones[0]);
+    Zone* zone = zones[0];
     
-    CHECK(zonedb.hasRecordWithName(dns_name_tolower("present.exists.test.")));
-    CHECK_FALSE(zonedb.hasRecordWithName(dns_name_tolower("absent.exists.test.")));
+    CHECK(zone->hasRecordWithName(dns_name_tolower("present.exists.test.")));
+    CHECK_FALSE(zone->hasRecordWithName(dns_name_tolower("absent.exists.test.")));
 }
 
-TEST_CASE("ZoneDatabase::addRecord and removeRecords work correctly", "[architecture][zonedb]")
+TEST_CASE("Zone::addRecord and removeRecords work correctly", "[architecture][zone]")
 {
     t_data zoneData;
     zoneData.push_back("$ORIGIN modify.test.");
@@ -1514,20 +1514,20 @@ TEST_CASE("ZoneDatabase::addRecord and removeRecords work correctly", "[architec
     ZoneFileLoader::load(zoneData, zones);
     REQUIRE(zones.size() == 1);
     
-    ZoneDatabase zonedb(zones[0]);
+    Zone* zone = zones[0];
     
     // Add a record
     RR* new_rr = RR::createByType(RR::A);
     new_rr->name = dns_name_tolower("new.modify.test.");
     new_rr->type = RR::A;
-    zonedb.addRecord(new_rr);
+    zone->addRecord(new_rr);
     
-    CHECK(zonedb.hasRecordWithName(dns_name_tolower("new.modify.test.")));
+    CHECK(zone->hasRecordWithName(dns_name_tolower("new.modify.test.")));
     
     // Remove it
-    int removed = zonedb.removeRecords(dns_name_tolower("new.modify.test."), RR::A);
+    int removed = zone->removeRecords(dns_name_tolower("new.modify.test."), RR::A);
     CHECK(removed == 1);
-    CHECK_FALSE(zonedb.hasRecordWithName(dns_name_tolower("new.modify.test.")));
+    CHECK_FALSE(zone->hasRecordWithName(dns_name_tolower("new.modify.test.")));
 }
 
 TEST_CASE("ZoneAuthority::findZoneForName with multiple zones", "[architecture][authority]")
@@ -1559,7 +1559,7 @@ TEST_CASE("ZoneAuthority::findZoneForName with multiple zones", "[architecture][
     CHECK(result2.zone->name == "zone2.test.");
 }
 
-TEST_CASE("UpdateProcessor::checkPrerequisites through ZoneDatabase", "[architecture][update]")
+TEST_CASE("UpdateProcessor::checkPrerequisites through Zone", "[architecture][update]")
 {
     t_data zoneData;
     zoneData.push_back("$ORIGIN prereq.test.");
@@ -1569,7 +1569,7 @@ TEST_CASE("UpdateProcessor::checkPrerequisites through ZoneDatabase", "[architec
     ZoneFileLoader::load(zoneData, zones);
     REQUIRE(zones.size() == 1);
     
-    ZoneDatabase zonedb(zones[0]);
+    Zone* zone = zones[0];
     
     // Create prerequisite: name exists
     Message request;
@@ -1580,13 +1580,13 @@ TEST_CASE("UpdateProcessor::checkPrerequisites through ZoneDatabase", "[architec
     request.an.push_back(prereq);
     
     std::string error;
-    bool result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    bool result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     
     CHECK(result);
     CHECK(error.empty());
 }
 
-TEST_CASE("QueryProcessor::findMatches through ZoneDatabase", "[architecture][query]")
+TEST_CASE("QueryProcessor::findMatches through Zone", "[architecture][query]")
 {
     t_data zoneData;
     zoneData.push_back("$ORIGIN query.test.");
@@ -1597,7 +1597,7 @@ TEST_CASE("QueryProcessor::findMatches through ZoneDatabase", "[architecture][qu
     ZoneFileLoader::load(zoneData, zones);
     REQUIRE(zones.size() == 1);
     
-    ZoneDatabase zonedb(zones[0]);
+    Zone* zone = zones[0];
     
     // Query for A record
     RR query_rr;
@@ -1605,7 +1605,7 @@ TEST_CASE("QueryProcessor::findMatches through ZoneDatabase", "[architecture][qu
     query_rr.type = RR::A;
     
     std::vector<RR*> matches;
-    QueryProcessor::findMatches(&query_rr, zonedb, matches, NULL);
+    QueryProcessor::findMatches(&query_rr, *zone, matches, NULL);
     
     CHECK(matches.size() >= 1);
     if (matches.size() > 0) {
@@ -1629,8 +1629,8 @@ TEST_CASE("Architecture: Complete UPDATE flow through components", "[architectur
     REQUIRE(lookup.found);
     REQUIRE(lookup.authorized);
     
-    // 2. Use ZoneDatabase for operations
-    ZoneDatabase zonedb(lookup.zone);
+    // 2. Use Zone for operations
+    Zone* zone = lookup.zone;
     
     // 3. Create UPDATE with prerequisite
     Message request;
@@ -1649,13 +1649,13 @@ TEST_CASE("Architecture: Complete UPDATE flow through components", "[architectur
     
     // 4. Check prerequisites with UpdateProcessor
     std::string error;
-    bool prereq_result = UpdateProcessor::checkPrerequisites(&request, zonedb, error);
+    bool prereq_result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     CHECK(prereq_result);
     
     // 5. Apply updates with UpdateProcessor
-    bool update_result = UpdateProcessor::applyUpdates(&request, zonedb, error);
+    bool update_result = UpdateProcessor::applyUpdates(&request, *zone, error);
     CHECK(update_result);
     
-    // 6. Verify with ZoneDatabase
-    CHECK(zonedb.hasRecordWithName(dns_name_tolower("new.flow.test.")));
+    // 6. Verify with Zone
+    CHECK(zone->hasRecordWithName(dns_name_tolower("new.flow.test.")));
 }

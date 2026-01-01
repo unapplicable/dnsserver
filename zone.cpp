@@ -1,15 +1,15 @@
-#include "zone_database.h"
+#include "zone.h"
 #include "rr.h"
 #include "rrsoa.h"
 #include <algorithm>
 
 using namespace std;
 
-vector<RR*> ZoneDatabase::findRecordsByName(const string& name, RR::RRType type) const
+vector<RR*> Zone::findRecordsByName(const string& name, RR::RRType type) const
 {
     vector<RR*> matches;
     
-    for (vector<RR*>::const_iterator it = zone_->rrs.begin(); it != zone_->rrs.end(); ++it)
+    for (vector<RR*>::const_iterator it = rrs.begin(); it != rrs.end(); ++it)
     {
         RR* rr = *it;
         
@@ -25,9 +25,9 @@ vector<RR*> ZoneDatabase::findRecordsByName(const string& name, RR::RRType type)
     return matches;
 }
 
-bool ZoneDatabase::hasRecordWithName(const string& name) const
+bool Zone::hasRecordWithName(const string& name) const
 {
-    for (vector<RR*>::const_iterator it = zone_->rrs.begin(); it != zone_->rrs.end(); ++it)
+    for (vector<RR*>::const_iterator it = rrs.begin(); it != rrs.end(); ++it)
     {
         RR* rr = *it;
         
@@ -38,9 +38,9 @@ bool ZoneDatabase::hasRecordWithName(const string& name) const
     return false;
 }
 
-bool ZoneDatabase::hasRecordWithNameAndType(const string& name, RR::RRType type) const
+bool Zone::hasRecordWithNameAndType(const string& name, RR::RRType type) const
 {
-    for (vector<RR*>::const_iterator it = zone_->rrs.begin(); it != zone_->rrs.end(); ++it)
+    for (vector<RR*>::const_iterator it = rrs.begin(); it != rrs.end(); ++it)
     {
         RR* rr = *it;
         
@@ -51,17 +51,17 @@ bool ZoneDatabase::hasRecordWithNameAndType(const string& name, RR::RRType type)
     return false;
 }
 
-void ZoneDatabase::addRecord(RR* record)
+void Zone::addRecord(RR* record)
 {
-    zone_->rrs.push_back(record);
+    rrs.push_back(record);
 }
 
-int ZoneDatabase::removeRecords(const string& name, RR::RRType type, const string& rdata)
+int Zone::removeRecords(const string& name, RR::RRType type, const string& rdata)
 {
     int removed_count = 0;
     
-    vector<RR*>::iterator it = zone_->rrs.begin();
-    while (it != zone_->rrs.end())
+    vector<RR*>::iterator it = rrs.begin();
+    while (it != rrs.end())
     {
         RR* rr = *it;
         
@@ -72,7 +72,7 @@ int ZoneDatabase::removeRecords(const string& name, RR::RRType type, const strin
         if (name_matches && type_matches && rdata_matches)
         {
             delete rr;
-            it = zone_->rrs.erase(it);
+            it = rrs.erase(it);
             removed_count++;
         }
         else
@@ -84,15 +84,21 @@ int ZoneDatabase::removeRecords(const string& name, RR::RRType type, const strin
     return removed_count;
 }
 
-RR* ZoneDatabase::findSOARecord() const
+bool Zone::incrementSerial()
 {
-    for (vector<RR*>::const_iterator it = zone_->rrs.begin(); it != zone_->rrs.end(); ++it)
+    for (vector<RR*>::iterator it = rrs.begin(); it != rrs.end(); ++it)
     {
         RR* rr = *it;
         if (rr->type == RR::SOA)
-            return rr;
+        {
+            RRSoa* soa = dynamic_cast<RRSoa*>(rr);
+            if (soa)
+            {
+                soa->serial++;
+                return true;
+            }
+        }
     }
     
-    return NULL;
+    return false;
 }
-

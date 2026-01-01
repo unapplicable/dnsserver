@@ -36,7 +36,7 @@ void RRDHCID::fromStringContents(const std::vector<std::string>& tokens)
 	}
 }
 
-void RRDHCID::packContents(char* data, unsigned int len, unsigned int& offset)
+void RRDHCID::packContents(char* data, unsigned int /* len */, unsigned int& offset)
 {
 	unsigned int oldoffset = offset - 2;
 	

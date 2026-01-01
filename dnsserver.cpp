@@ -19,7 +19,6 @@ using namespace std;
 #include "rrsoa.h"
 #include "zoneFileLoader.h"
 #include "zone_authority.h"
-#include "zone_database.h"
 #include "update_processor.h"
 #include "query_processor.h"
 
@@ -78,10 +77,9 @@ void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADD
 	
 	// Use QueryProcessor to find matching records
 	{
-		ZoneDatabase zonedb(z);
 		vector<RR*> matches;
 		RR *rrNs = nullptr;
-		QueryProcessor::findMatches(qrr, zonedb, matches, &rrNs);
+		QueryProcessor::findMatches(qrr, *z, matches, &rrNs);
 		
 		// Clone matches and add to answer section
 		for (vector<RR*>::const_iterator match_iter = matches.begin(); 
@@ -161,9 +159,8 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 		cout << "UPDATE: Prerequisites: " << request->an.size() << ", Updates: " << request->ns.size() << endl << flush;
 		
 		// Check prerequisites using UpdateProcessor
-		ZoneDatabase zonedb(target_zone);
 		string prereq_error;
-		if (!UpdateProcessor::checkPrerequisites(request, zonedb, prereq_error))
+		if (!UpdateProcessor::checkPrerequisites(request, *target_zone, prereq_error))
 		{
 			cout << "UPDATE: " << prereq_error << endl << flush;
 			reply->rcode = Message::CODENAMEERROR;
@@ -177,10 +174,7 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 		
 		// Apply updates using UpdateProcessor
 		string update_error;
-		UpdateProcessor::applyUpdates(request, zonedb, update_error);
-		
-		// Increment SOA serial
-		ZoneAuthority::incrementSerial(target_zone);
+		UpdateProcessor::applyUpdates(request, *target_zone, update_error);
 		
 		pthread_mutex_unlock(&g_zone_mutex);
 		// CRITICAL SECTION END
@@ -443,7 +437,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
 				continue;
 			}
 			msglen = ntohs(msglen);
-			if (msglen == 0 || msglen > 65535)
+			if (msglen == 0)
 			{
 				closesocket_compat(client);
 				continue;

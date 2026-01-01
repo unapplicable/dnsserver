@@ -1,7 +1,7 @@
 #include "socket.h"
 #include "rrtxt.h"
 
-void RRTXT::packContents(char* data, unsigned int len, unsigned int& offset)
+void RRTXT::packContents(char* data, unsigned int /* len */, unsigned int& offset)
 {
 	unsigned int oldoffset = offset - 2;
 	data[offset++] = (unsigned char)rdata.length();
