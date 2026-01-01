@@ -79,7 +79,7 @@ EOF
 start_server() {
     log "Starting DNS server on $SERVER:$PORT"
     create_test_zone
-    ./dnsserver -p $PORT test_update.zone $SERVER > server.log 2>&1 &
+    ./bin/dnsserver -p $PORT test_update.zone $SERVER > server.log 2>&1 &
     local starter_pid=$!
     wait $starter_pid 2>/dev/null  # Wait for parent to exit after fork
     sleep 1
