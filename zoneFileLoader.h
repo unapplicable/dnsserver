@@ -12,5 +12,13 @@ typedef std::vector<Zone*> t_zones;
 struct ZoneFileLoader
 {
 	static bool load(const t_data& data, t_zones& zones);
+	
+private:
+	static std::string stripComments(const std::string& line);
+	static std::vector<std::string> tokenize(const std::string& line);
+	static void handleOrigin(const std::vector<std::string>& tokens, Zone*& parent, Zone*& current, t_zones& zones, std::string& previousName);
+	static void handleACL(const std::vector<std::string>& tokens, Zone* parent, Zone*& current);
+	static void handleResourceRecord(const std::vector<std::string>& tokens, Zone* current, std::string& previousName);
+	static std::string processRecordName(const std::string& name, const Zone* zone, const std::string& previousName);
 };
 #endif
