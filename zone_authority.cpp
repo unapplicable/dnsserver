@@ -5,6 +5,10 @@
 
 using namespace std;
 
+ZoneAuthority::ZoneAuthority(const vector<Zone*>& zones) : zones_(zones)
+{
+}
+
 ZoneLookupResult ZoneAuthority::findZoneForName(const string& zone_name, 
                                                  unsigned long client_addr) const
 {

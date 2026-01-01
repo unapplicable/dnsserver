@@ -2,7 +2,6 @@
 #include <cassert>
 #include <cstring>
 #include "query_processor.h"
-#include "zone_database.h"
 #include "zone.h"
 #include "rra.h"
 #include "rrcname.h"
@@ -37,7 +36,7 @@ void test_case_insensitive_matching() {
     rr2->rdata.append(reinterpret_cast<char*>(&addr2), 4);
     z.rrs.push_back(rr2);
     
-    ZoneDatabase zonedb(&z);
+    // Zone z already available
     
     // Query with different case (but names are already lowercased in real parsing)
     RR query_rr;
@@ -52,7 +51,7 @@ void test_case_insensitive_matching() {
     }
     
     vector<RR*> matches;
-    QueryProcessor::findMatches(&query_rr, zonedb, matches);
+    QueryProcessor::findMatches(&query_rr, z, matches);
     
     // Should match both records
     cout << "  Found " << matches.size() << " matches (expected 2)" << endl;
@@ -83,7 +82,7 @@ void test_wildcard_query() {
     rr2->rdata = "target.example.com.";
     z.rrs.push_back(rr2);
     
-    ZoneDatabase zonedb(&z);
+    // Zone z already available
     
     // Query with TYPESTAR
     RR query_rr;
@@ -92,7 +91,7 @@ void test_wildcard_query() {
     query_rr.rrclass = RR::CLASSIN;
     
     vector<RR*> matches;
-    QueryProcessor::findMatches(&query_rr, zonedb, matches);
+    QueryProcessor::findMatches(&query_rr, z, matches);
     
     // Should match both A and CNAME
     assert(matches.size() == 2);
@@ -114,7 +113,7 @@ void test_ns_record_detection() {
     ns_rr->rdata = "ns1.example.com.";
     z.rrs.push_back(ns_rr);
     
-    ZoneDatabase zonedb(&z);
+    // Zone z already available
     
     // Query for something under subdomain
     RR query_rr;
@@ -124,7 +123,7 @@ void test_ns_record_detection() {
     
     vector<RR*> matches;
     RR *ns_record = NULL;
-    QueryProcessor::findMatches(&query_rr, zonedb, matches, &ns_record);
+    QueryProcessor::findMatches(&query_rr, z, matches, &ns_record);
     
     // Should find NS record for delegation
     assert(ns_record != NULL);
