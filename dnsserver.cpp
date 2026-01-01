@@ -17,6 +17,7 @@ using namespace std;
 #include "message.h"
 #include "rr.h"
 #include "rrsoa.h"
+#include "rrtxt.h"
 #include "zoneFileLoader.h"
 #include "zone_authority.h"
 #include "update_processor.h"
@@ -42,6 +43,56 @@ void dump(char *buf, int len)
 	cout << flush;
 }
 
+void handleVersionBind(SOCKET s, SOCKADDR_STORAGE* addr, int addrlen, Message* request, vector<Zone*>& zones, bool is_tcp)
+{
+	const RR *qrr = request->qd[0];
+	Message *reply = new Message();
+	reply->id = request->id;
+	reply->opcode = Message::QUERY;
+	reply->qd.push_back(qrr->clone());
+	reply->truncation = false;
+	reply->query = false;
+	reply->authoritative = true;
+	reply->rcode = Message::CODENOERROR;
+	reply->recursionavailable = reply->recursiondesired = request->recursiondesired;
+	
+	// Check if there's a version.bind record in the zone file
+	string version_text = VERSION;
+	for (vector<Zone*>::iterator zone_iter = zones.begin(); zone_iter != zones.end(); ++zone_iter)
+	{
+		Zone* zone = *zone_iter;
+		const vector<RR*>& rrs = zone->getAllRecords();
+		for (vector<RR*>::const_iterator rr_iter = rrs.begin(); rr_iter != rrs.end(); ++rr_iter)
+		{
+			const RR* rr = *rr_iter;
+			if (rr->name == qrr->name && rr->type == RR::TXT && rr->rrclass == RR::CH)
+			{
+				// Found zone file entry - prepend it to version
+				version_text = rr->rdata + " " + VERSION;
+				break;
+			}
+		}
+	}
+	
+	// Create TXT record with version
+	RR *arr = new RRTXT();
+	arr->name = qrr->name;
+	arr->rrclass = RR::CH;
+	arr->type = RR::TXT;
+	arr->ttl = 0;
+	arr->query = false;
+	arr->rdata = version_text;
+	reply->an.push_back(arr);
+	
+	cout << *reply << flush;
+	
+	char response[0x10000];
+	unsigned int response_len = 0;
+	reply->pack(response, sizeof(response), response_len);
+	
+	send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
+	delete reply;
+}
 
 void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADDR_STORAGE *addr, int addrlen,
                  Message *request, vector<Zone *>& zones, unsigned long fromaddr, bool is_tcp = false)
@@ -52,6 +103,14 @@ void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADD
 	}
 	
 	const RR *qrr = request->qd[0];
+	
+	// Handle CHAOS class version.bind queries
+	if (qrr->rrclass == RR::CH && qrr->type == RR::TXT && 
+	    (qrr->name == "version.bind." || qrr->name == "version."))
+	{
+		handleVersionBind(s, addr, addrlen, request, zones, is_tcp);
+		return;
+	}
 	
 	// Find zone using ZoneAuthority
 	ZoneAuthority authority(zones);
