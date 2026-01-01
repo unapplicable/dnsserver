@@ -106,16 +106,7 @@ void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADD
 	unsigned int response_len = 0;
 	reply->pack(response, sizeof(response), response_len);
 	
-	if (is_tcp)
-	{
-		uint16_t tcp_length = htons(response_len);
-		send(s, (char*)&tcp_length, 2, 0);
-		send(s, response, response_len, 0);
-	}
-	else
-	{
-		sendto(s, response, response_len, 0, (sockaddr*)addr, addrlen);
-	}
+	send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
 	
 	delete reply;
 }
