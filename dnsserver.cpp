@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <iomanip>
 #include <algorithm>
 #include <ctime>
 #include <cstring>
@@ -34,12 +35,13 @@ void dump(char *buf, int len)
 	int i;
 	for (i = 0; i < len; i++)
 	{
-		printf("\\x%02X", (unsigned char)buf[i]);
+		cout << "\\x" << hex << setfill('0') << setw(2) << (int)(unsigned char)buf[i] << dec;
 		if (i % 16 == 15)
-			printf("\n");
+			cout << endl;
 	}
 	if ((i - 1) % 16 != 15)
-		printf("\n");
+		cout << endl;
+	cout << flush;
 }
 
 
@@ -100,7 +102,7 @@ void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADD
 		}
 	}
 	
-	cout << *reply;
+	cout << *reply << flush;
 	
 	char response[0x10000];
 	unsigned int response_len = 0;
@@ -127,7 +129,7 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 	
 	if (request->qd.size() != 1 || !request->qd[0])
 	{
-		cout << "UPDATE: Invalid zone section" << endl;
+		cout << "UPDATE: Invalid zone section" << endl << flush;
 		reply->rcode = Message::CODEFORMATERROR;
 		goto send_response;
 	}
@@ -135,12 +137,12 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 	zone_rr = request->qd[0];
 	if (zone_rr->type != RR::SOA)
 	{
-		cout << "UPDATE: Zone section must be SOA" << endl;
+		cout << "UPDATE: Zone section must be SOA" << endl << flush;
 		reply->rcode = Message::CODEFORMATERROR;
 		goto send_response;
 	}
 	
-	cout << "UPDATE: Processing zone " << zone_rr->name << endl;
+	cout << "UPDATE: Processing zone " << zone_rr->name << endl << flush;
 	
 	{
 		// Find zone using ZoneAuthority
@@ -149,26 +151,26 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 		
 		if (!lookup.found || !lookup.authorized)
 		{
-			cout << "UPDATE: " << lookup.error_message << endl;
+			cout << "UPDATE: " << lookup.error_message << endl << flush;
 			reply->rcode = Message::CODEREFUSED;
 			goto send_response;
 		}
 		
 		Zone *target_zone = lookup.zone;
-		cout << "UPDATE: Target zone found: " << target_zone->name << endl;
-		cout << "UPDATE: Prerequisites: " << request->an.size() << ", Updates: " << request->ns.size() << endl;
+		cout << "UPDATE: Target zone found: " << target_zone->name << endl << flush;
+		cout << "UPDATE: Prerequisites: " << request->an.size() << ", Updates: " << request->ns.size() << endl << flush;
 		
 		// Check prerequisites using UpdateProcessor
 		ZoneDatabase zonedb(target_zone);
 		string prereq_error;
 		if (!UpdateProcessor::checkPrerequisites(request, zonedb, prereq_error))
 		{
-			cout << "UPDATE: " << prereq_error << endl;
+			cout << "UPDATE: " << prereq_error << endl << flush;
 			reply->rcode = Message::CODENAMEERROR;
 			goto send_response;
 		}
 		
-		cout << "UPDATE: All prerequisites passed" << endl;
+		cout << "UPDATE: All prerequisites passed" << endl << flush;
 		
 		// CRITICAL SECTION START: Protect all zone modifications
 		pthread_mutex_lock(&g_zone_mutex);
@@ -183,7 +185,7 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 		pthread_mutex_unlock(&g_zone_mutex);
 		// CRITICAL SECTION END
 		
-		cout << "UPDATE: Success" << endl;
+		cout << "UPDATE: Success" << endl << flush;
 	}
 	
 send_response:
@@ -193,7 +195,7 @@ send_response:
 	char packet[0x10000] = {};
 	unsigned int packetsize = 0;
 	
-	cout << *reply << endl;
+	cout << *reply << endl << flush;
 	
 	reply->pack(packet, (unsigned int)sizeof(packet), packetsize);
 	send_dns_response(s, packet, packetsize, addr, addrlen, is_tcp);
@@ -216,10 +218,8 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 	he = gethostbyaddr(ipBytes, addrlen, AF_INET);
 	*/
 
-	printf("\n");
 	strftime(tmp, sizeof(tmp), "%Y.%m.%d %H:%M:%S", tmt);
-	printf("%s [%s] {%s} : %i\n",tmp, from, he ? he->h_name : "-", len);
-	fflush(stdout);
+	cout << "\n" << tmp << " [" << from << "] {" << (he ? he->h_name : "-") << "} : " << len << endl << flush;
 	unsigned long fromaddr = inet_addr(from);
 
 	//dump(buf, len);
@@ -229,11 +229,11 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 	if (!msgtest->unpack(buf, len, offset))
 	{
 		delete msgtest;
-		cout << "faulty" << endl;
+		cout << "faulty" << endl << flush;
 		return;
 	}
 
-	cout << *msgtest;
+	cout << *msgtest << flush;
 	
 	if (msgtest->query && msgtest->opcode == Message::UPDATE)
 	{
@@ -304,11 +304,11 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
 	for (numSockets = 0; vaddr[numSockets] != 0; ++numSockets)
 	{
 		char* addr = vaddr[numSockets];
-		fprintf(stderr, "binding UDP to %s:%d\n", addr, port);
+		cerr << "binding UDP to " << addr << ":" << port << endl;
 
 		if (getaddrinfo(addr, portstr, &hints, &addrinfo))
 		{
-			fprintf(stderr, "getaddrinfo failed for %s\n", addr);
+			cerr << "getaddrinfo failed for " << addr << endl;
 			return;
 		}
 
@@ -318,7 +318,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
 
 		if ((udp_s[numSockets] = socket(addrinfoi->ai_family, addrinfoi->ai_socktype, addrinfoi->ai_protocol)) == INVALID_SOCKET)
 		{
-			fprintf(stderr, "UDP socket failed %s\n", addr);
+			cerr << "UDP socket failed " << addr << endl;
 			return;
 		}
 
@@ -326,7 +326,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
 
 		if (bind(udp_s[numSockets], addrinfoi->ai_addr, static_cast<int>(addrinfoi->ai_addrlen)) == SOCKET_ERROR)
 		{
-			fprintf(stderr, "UDP bind failed %s:%d\n", addr, port);
+			cerr << "UDP bind failed " << addr << ":" << port << endl;
 			return;
 		}
 
@@ -342,11 +342,11 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
 	for (int i = 0; i < numSockets; ++i)
 	{
 		char* addr = vaddr[i];
-		fprintf(stderr, "binding TCP to %s:%d\n", addr, port);
+		cerr << "binding TCP to " << addr << ":" << port << endl;
 
 		if (getaddrinfo(addr, portstr, &hints, &addrinfo))
 		{
-			fprintf(stderr, "getaddrinfo failed for TCP %s\n", addr);
+			cerr << "getaddrinfo failed for TCP " << addr << endl;
 			return;
 		}
 
@@ -356,7 +356,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
 
 		if ((tcp_s[i] = socket(addrinfoi->ai_family, addrinfoi->ai_socktype, addrinfoi->ai_protocol)) == INVALID_SOCKET)
 		{
-			fprintf(stderr, "TCP socket failed %s\n", addr);
+			cerr << "TCP socket failed " << addr << endl;
 			return;
 		}
 
@@ -366,13 +366,13 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
 
 		if (bind(tcp_s[i], addrinfoi->ai_addr, static_cast<int>(addrinfoi->ai_addrlen)) == SOCKET_ERROR)
 		{
-			fprintf(stderr, "TCP bind failed %s:%d\n", addr, port);
+			cerr << "TCP bind failed " << addr << ":" << port << endl;
 			return;
 		}
 
 		if (listen(tcp_s[i], 128) == SOCKET_ERROR)
 		{
-			fprintf(stderr, "TCP listen failed %s:%d\n", addr, port);
+			cerr << "TCP listen failed " << addr << ":" << port << endl;
 			return;
 		}
 
@@ -413,7 +413,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port)
 			if (numrecv == SOCKET_ERROR || numrecv == 0)
 			{
 				if (!wouldblock())
-					fprintf(stderr, "recvfrom failed\n");
+					cerr << "recvfrom failed" << endl;
 				continue;
 			}
 
@@ -473,7 +473,7 @@ int main(int argc, char* argv[])
 	vector<Zone *> zones;
 	vector<string> zonedata;
 
-	std::cout << "dnsserver version " << VERSION << std::endl;
+	cout << "dnsserver version " << VERSION << endl;
 
 	if (argc < 3)
 	{
