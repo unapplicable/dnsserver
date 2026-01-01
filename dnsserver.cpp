@@ -183,7 +183,7 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 			vector<Zone *>::const_iterator ziter;
 			for (ziter = zones.begin(); ziter != zones.end(); ++ziter)
 			{
-				const Zone *z = *ziter;
+				Zone *z = *ziter;
 
 				string qrr_name(qrr->name), z_name(z->name);
 
@@ -223,28 +223,20 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 				reply->rcode = Message::CODENOERROR;
 				reply->recursionavailable = reply->recursiondesired = msgtest->recursiondesired;
 
-				vector<RR *>::const_iterator rriter;
+				// Use QueryProcessor to find matching records
+				ZoneDatabase zonedb(z);
+				vector<RR*> matches;
 				RR *rrNs = nullptr;
-				for (rriter = z->rrs.begin(); rriter != z->rrs.end(); ++rriter)
+				QueryProcessor::findMatches(qrr, zonedb, matches, &rrNs);
+				
+				// Clone matches and add to answer section
+				for (vector<RR*>::const_iterator match_iter = matches.begin(); 
+				     match_iter != matches.end(); ++match_iter)
 				{
-					RR *rr = *rriter;
-
-					string rr_name(rr->name);
-					
-					if (
-						(rr->type == qrr->type && rr_name == qrr_name) ||
-						(qrr->type == RR::TYPESTAR && rr_name == qrr_name)
-						)
-					{
-						RR *arr = rr->clone();
-						arr->query = false;												
-						
-						arr->ttl = 10 * 60; // 10 minutes
-												
-						reply->an.push_back(arr);
-					} else if (rr->type == RR::NS && 0 == rr_name.compare(0, qrr_name.length(), qrr_name)) {
-						rrNs = rr;
-					}
+					RR *arr = (*match_iter)->clone();
+					arr->query = false;
+					arr->ttl = 10 * 60; // 10 minutes
+					reply->an.push_back(arr);
 				}
 
 				if (reply->an.size() == 0 && rrNs != nullptr) {

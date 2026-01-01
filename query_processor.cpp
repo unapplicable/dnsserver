@@ -7,26 +7,28 @@ void QueryProcessor::findMatches(const RR* query_rr,
                                 vector<RR*>& matches,
                                 RR** ns_record)
 {
-    string qrr_name = query_rr->name;
     const vector<RR*>& all_records = zonedb.getAllRecords();
     
     for (vector<RR*>::const_iterator rriter = all_records.begin(); 
          rriter != all_records.end(); ++rriter)
     {
         RR *rr = *rriter;
-        string rr_name = rr->name;
         
-        // Match by exact name and type, or wildcard type
-        if ((rr->type == query_rr->type && rr_name == qrr_name) ||
-            (query_rr->type == RR::TYPESTAR && rr_name == qrr_name))
+        // Match by exact name and type, or wildcard type (names already lowercased)
+        if ((rr->type == query_rr->type && rr->name == query_rr->name) ||
+            (query_rr->type == RR::TYPESTAR && rr->name == query_rr->name))
         {
             matches.push_back(rr);
         }
-        else if (rr->type == RR::NS && 
-                 0 == rr_name.compare(0, qrr_name.length(), qrr_name))
+        else if (rr->type == RR::NS)
         {
-            if (ns_record && *ns_record == NULL)
-                *ns_record = rr;
+            // Check if query name ends with NS record name (subdomain check)
+            size_t pos = query_rr->name.rfind(rr->name);
+            if (pos != string::npos && pos == query_rr->name.length() - rr->name.length())
+            {
+                if (ns_record && *ns_record == NULL)
+                    *ns_record = rr;
+            }
         }
     }
 }

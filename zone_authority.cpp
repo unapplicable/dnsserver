@@ -9,17 +9,35 @@ ZoneLookupResult ZoneAuthority::findZoneForName(const string& zone_name,
                                                  unsigned long client_addr) const
 {
     ZoneLookupResult result;
-    string zone_name_normalized = normalize_dns_name(zone_name);
     
     for (vector<Zone*>::const_iterator ziter = zones_.begin(); ziter != zones_.end(); ++ziter)
     {
         Zone *z = *ziter;
-        string znormalized = normalize_dns_name(z->name);
+        
+        // Normalize both names - ensure they end with dot for comparison
+        string query_normalized = zone_name;
+        if (query_normalized.empty() || query_normalized[query_normalized.length()-1] != '.')
+            query_normalized += '.';
+            
+        string zone_normalized = z->name;
+        if (zone_normalized.empty() || zone_normalized[zone_normalized.length()-1] != '.')
+            zone_normalized += '.';
         
         // Check if zone matches (exact match or suffix match)
-        if (zone_name_normalized == znormalized || 
-            (zone_name_normalized.length() >= znormalized.length() && 
-             zone_name_normalized.substr(zone_name_normalized.length() - znormalized.length()) == znormalized))
+        bool matches = (query_normalized == zone_normalized);
+        if (!matches && query_normalized.length() >= zone_normalized.length())
+        {
+            // Check if query_normalized ends with zone_normalized
+            size_t pos = query_normalized.length() - zone_normalized.length();
+            if (query_normalized.substr(pos) == zone_normalized)
+            {
+                // Make sure there's a dot separator (or it's at the beginning)
+                if (pos == 0 || query_normalized[pos - 1] == '.')
+                    matches = true;
+            }
+        }
+        
+        if (matches)
         {
             result.found = true;
             

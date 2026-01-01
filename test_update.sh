@@ -2,7 +2,8 @@
 # DNS UPDATE Integration Test Suite
 # Tests RFC 2136 UPDATE operations
 
-set -e
+# Don't exit on error - handle test failures explicitly
+# This allows all tests to run even if one fails
 
 SERVER="127.0.0.1"
 PORT="15353"
