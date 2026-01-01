@@ -24,6 +24,41 @@ void RRSoa::fromStringContents(const std::vector<std::string>& tokens)
 	minttl = atoi(tokens[6].c_str());
 };
 
+bool RRSoa::unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery)
+{
+	if (!RR::unpack(data, len, offset, isQuery))
+		return false;
+	
+	if (isQuery)
+		return true;
+	
+	unsigned int rdataOffset = offset - rdlen;
+	unsigned int rdataEnd = offset;
+	
+	ns = unpackNameWithDot(data, len, rdataOffset);
+	mail = unpackNameWithDot(data, len, rdataOffset);
+	
+	if (rdataOffset + 20 > rdataEnd)
+		return false;
+	
+	serial = ntohl(*(uint32_t*)&data[rdataOffset]);
+	rdataOffset += 4;
+	
+	refresh = ntohl(*(uint32_t*)&data[rdataOffset]);
+	rdataOffset += 4;
+	
+	retry = ntohl(*(uint32_t*)&data[rdataOffset]);
+	rdataOffset += 4;
+	
+	expire = ntohl(*(uint32_t*)&data[rdataOffset]);
+	rdataOffset += 4;
+	
+	minttl = ntohl(*(uint32_t*)&data[rdataOffset]);
+	rdataOffset += 4;
+	
+	return true;
+}
+
 void RRSoa::packContents(char* data, unsigned int len, unsigned int& offset)
 {
 	unsigned int oldoffset = offset - 2;

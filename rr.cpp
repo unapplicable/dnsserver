@@ -141,6 +141,14 @@ std::string RR::unpackName(char *data, unsigned int len, unsigned int& offset)
 	return name;
 }
 
+std::string RR::unpackNameWithDot(char *data, unsigned int len, unsigned int& offset)
+{
+	std::string name = unpackName(data, len, offset);
+	if (!name.empty() && name[name.length()-1] != '.')
+		name += '.';
+	return name;
+}
+
 RR* RR::createByType(RRType type)
 {
 	switch (type)

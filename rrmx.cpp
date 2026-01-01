@@ -12,10 +12,31 @@ void RRMX::fromStringContents(const std::vector<std::string>& tokens)
 	rdata = tokens[1];	
 };
 
+bool RRMX::unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery)
+{
+	if (!RR::unpack(data, len, offset, isQuery))
+		return false;
+	
+	if (isQuery)
+		return true;
+	
+	unsigned int rdataOffset = offset - rdlen;
+	unsigned int rdataEnd = offset;
+	
+	if (rdataOffset + 2 > rdataEnd)
+		return false;
+	
+	pref = ntohs(*(uint16_t*)&data[rdataOffset]);
+	rdataOffset += 2;
+	
+	rdata = unpackNameWithDot(data, len, rdataOffset);
+	return true;
+}
+
 void RRMX::packContents(char* data, unsigned int len, unsigned int& offset)
 {
 	unsigned int oldoffset = offset - 2;
-	(unsigned short&)data[offset] = htons(10);
+	(unsigned short&)data[offset] = htons(pref);
 	offset += 2;
 	packName(data, len, offset, rdata);
 	unsigned int packedrdlen = offset - (oldoffset + 2);

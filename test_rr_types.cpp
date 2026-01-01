@@ -516,8 +516,8 @@ TEST_CASE("RRSoa: Unpack from network", "[rr][soa][network]")
     // TTL: 3600
     *(uint32_t*)(packet + 10) = htonl(3600);
     
-    // RDLEN: 30 (approximate for minimal SOA)
-    *(uint16_t*)(packet + 14) = htons(30);
+    // RDLEN: 31 (2 names: 4+7 bytes, plus 5*4=20 bytes for numbers)
+    *(uint16_t*)(packet + 14) = htons(31);
     
     // RDATA: MNAME (ns) + RNAME (admin) + serial + refresh + retry + expire + minimum
     packet[16] = 2;

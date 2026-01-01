@@ -5,11 +5,13 @@
 
 bool RRDHCID::unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery)
 {
-	// Call base class unpack which reads into rdata
 	if (!RR::unpack(data, len, offset, isQuery))
 		return false;
 	
-	// Copy rdata to identifier
+	if (isQuery)
+		return true;
+	
+	// rdata contains the raw binary DHCID data
 	identifier = rdata;
 	return true;
 }
@@ -33,6 +35,7 @@ void RRDHCID::fromStringContents(const std::vector<std::string>& tokens)
 	if (tokens.size() > 0)
 	{
 		identifier = tokens[0];
+		rdata = identifier;
 	}
 }
 

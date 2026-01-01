@@ -11,6 +11,19 @@ std::ostream& RRNS::dumpContents(std::ostream& os) const
 	return os << rdata;
 }
 
+bool RRNS::unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery)
+{
+	if (!RR::unpack(data, len, offset, isQuery))
+		return false;
+	
+	if (isQuery)
+		return true;
+	
+	unsigned int rdataOffset = offset - rdlen;
+	rdata = unpackNameWithDot(data, len, rdataOffset);
+	return true;
+}
+
 void RRNS::packContents(char* data, unsigned int len, unsigned int& offset)
 {
 	unsigned int oldoffset = offset - 2;

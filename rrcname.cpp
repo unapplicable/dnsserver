@@ -11,6 +11,19 @@ void RRCNAME::fromStringContents(const std::vector<std::string>& tokens)
 	rdata = tokens[0];
 }
 
+bool RRCNAME::unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery)
+{
+	if (!RR::unpack(data, len, offset, isQuery))
+		return false;
+	
+	if (isQuery)
+		return true;
+	
+	unsigned int rdataOffset = offset - rdlen;
+	rdata = unpackNameWithDot(data, len, rdataOffset);
+	return true;
+}
+
 void RRCNAME::packContents(char* data, unsigned int len, unsigned int& offset)
 {
 	unsigned int oldoffset = offset - 2;

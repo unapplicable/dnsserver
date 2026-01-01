@@ -17,6 +17,7 @@ class RRSoa : public RR
 		unsigned long retry;
 		unsigned long expire;
 		unsigned long minttl;
+		virtual bool unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery);
 		virtual void packContents(char* data, unsigned int len, unsigned int& offset);
 		virtual std::ostream& dumpContents(std::ostream& os) const;
 		virtual void fromStringContents(const std::vector<std::string>& v);

@@ -77,6 +77,36 @@ void ZoneFileLoader::handleResourceRecord(const std::vector<std::string>& tokens
 	
 	mutableTokens[0] = processRecordName(tokens[0], current, previousName);
 	
+	// Process domain names in rdata for types that contain them
+	if (rrtype == RR::CNAME || rrtype == RR::NS || rrtype == RR::PTR)
+	{
+		// These types have a single domain name as rdata (token index 3)
+		if (mutableTokens.size() > 3)
+		{
+			mutableTokens[3] = processRecordName(tokens[3], current, "");
+		}
+	}
+	else if (rrtype == RR::MX)
+	{
+		// MX has preference then domain name (token indices 3 and 4)
+		if (mutableTokens.size() > 4)
+		{
+			mutableTokens[4] = processRecordName(tokens[4], current, "");
+		}
+	}
+	else if (rrtype == RR::SOA)
+	{
+		// SOA has two domain names: ns and mail (token indices 3 and 4)
+		if (mutableTokens.size() > 3)
+		{
+			mutableTokens[3] = processRecordName(tokens[3], current, "");
+		}
+		if (mutableTokens.size() > 4)
+		{
+			mutableTokens[4] = processRecordName(tokens[4], current, "");
+		}
+	}
+	
 	if (!tokens[0].empty())
 		previousName = mutableTokens[0];
 	
