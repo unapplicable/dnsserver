@@ -5,6 +5,12 @@ CXXFLAGS = -Wall -Wextra -std=c++14 -g -DLINUX
 LDFLAGS = -lpthread
 TEST_LDFLAGS = -lpthread -lCatch2Main -lCatch2
 
+# Version information
+GIT_HASH := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE := $(shell date '+%Y-%m-%d %H:%M:%S')
+VERSION_FILE = version.h
+
 # Directories
 BUILD_DIR = build
 BIN_DIR = bin
@@ -45,7 +51,18 @@ TEST_QUERY_BIN = $(BIN_DIR)/test_query_processor
 TEST_RR_BIN = $(BIN_DIR)/test_rr_types
 
 # Default target
-all: $(SERVER_BIN)
+all: $(VERSION_FILE) $(SERVER_BIN)
+
+# Generate version header
+$(VERSION_FILE):
+	@echo "Generating version information..."
+	@echo "#ifndef VERSION_H" > $(VERSION_FILE)
+	@echo "#define VERSION_H" >> $(VERSION_FILE)
+	@echo "#define GIT_HASH \"$(GIT_HASH)\"" >> $(VERSION_FILE)
+	@echo "#define GIT_BRANCH \"$(GIT_BRANCH)\"" >> $(VERSION_FILE)
+	@echo "#define BUILD_DATE \"$(BUILD_DATE)\"" >> $(VERSION_FILE)
+	@echo "#define VERSION \"$(GIT_BRANCH)-$(GIT_HASH) (built $(BUILD_DATE))\"" >> $(VERSION_FILE)
+	@echo "#endif" >> $(VERSION_FILE)
 
 # Create directories
 $(BUILD_DIR) $(BIN_DIR):
@@ -98,7 +115,7 @@ test-all: test test-integration
 # Clean
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)
-	rm -f *.o test_update.log dnsserver test_dns_update
+	rm -f *.o test_update.log dnsserver test_dns_update $(VERSION_FILE)
 
 # Rebuild
 rebuild: clean all
@@ -108,7 +125,7 @@ run-test: $(SERVER_BIN)
 	$(SERVER_BIN) 127.0.0.1 5353 test.zone
 
 # Dependencies
-$(BUILD_DIR)/dnsserver.o: dnsserver.cpp socket.h zone.h message.h rr.h zoneFileLoader.h zone_authority.h update_processor.h query_processor.h
+$(BUILD_DIR)/dnsserver.o: dnsserver.cpp socket.h zone.h message.h rr.h zoneFileLoader.h zone_authority.h update_processor.h query_processor.h $(VERSION_FILE)
 $(BUILD_DIR)/message.o: message.cpp message.h rr.h socket.h
 $(BUILD_DIR)/rr.o: rr.cpp rr.h socket.h rrsoa.h rrmx.h rrtxt.h rrptr.h rrcname.h rrns.h rraaaa.h rra.h rrcert.h rrdhcid.h
 $(BUILD_DIR)/zoneFileLoader.o: zoneFileLoader.cpp zoneFileLoader.h zone.h rr.h

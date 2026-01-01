@@ -21,8 +21,7 @@ using namespace std;
 #include "zone_authority.h"
 #include "update_processor.h"
 #include "query_processor.h"
-
-std::string VERSION("$Id$");
+#include "version.h"
 
 // Global mutex for zone modifications
 pthread_mutex_t g_zone_mutex = PTHREAD_MUTEX_INITIALIZER; 
