@@ -26,15 +26,23 @@ TEST_QUERY_SOURCES = test_query_processor.cpp zone.cpp \
                      rr.cpp rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                      rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
 
+TEST_RR_SOURCES = test_rr_types.cpp message.cpp rr.cpp zoneFileLoader.cpp \
+                  zone.cpp zone_authority.cpp \
+                  update_processor.cpp query_processor.cpp \
+                  rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
+                  rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
+
 # Object files
 SERVER_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SERVER_SOURCES))
 TEST_UPDATE_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_%.o,$(TEST_UPDATE_SOURCES))
 TEST_QUERY_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_qp_%.o,$(TEST_QUERY_SOURCES))
+TEST_RR_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_rr_%.o,$(TEST_RR_SOURCES))
 
 # Executables
 SERVER_BIN = $(BIN_DIR)/dnsserver
 TEST_UPDATE_BIN = $(BIN_DIR)/test_dns_update
 TEST_QUERY_BIN = $(BIN_DIR)/test_query_processor
+TEST_RR_BIN = $(BIN_DIR)/test_rr_types
 
 # Default target
 all: $(SERVER_BIN)
@@ -48,17 +56,22 @@ $(SERVER_BIN): $(SERVER_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(SERVER_OBJECTS) $(LDFLAGS)
 
 # Build tests
-test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN)
+test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN)
 	@echo "Running UPDATE unit tests..."
 	$(TEST_UPDATE_BIN)
 	@echo "Running QueryProcessor unit tests..."
 	$(TEST_QUERY_BIN)
+	@echo "Running RR types unit tests..."
+	$(TEST_RR_BIN)
 
 $(TEST_UPDATE_BIN): $(TEST_UPDATE_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_UPDATE_OBJECTS) $(TEST_LDFLAGS)
 
 $(TEST_QUERY_BIN): $(TEST_QUERY_OBJECTS) $(BUILD_DIR)/query_processor.o | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_QUERY_OBJECTS) $(BUILD_DIR)/query_processor.o -lpthread
+
+$(TEST_RR_BIN): $(TEST_RR_OBJECTS) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $(TEST_RR_OBJECTS) $(TEST_LDFLAGS)
 
 # Build object files
 $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
@@ -68,6 +81,9 @@ $(BUILD_DIR)/test_%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/test_qp_%.o: %.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/test_rr_%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Integration tests
@@ -113,5 +129,6 @@ $(BUILD_DIR)/rrtxt.o: rrtxt.cpp rrtxt.h rr.h socket.h
 
 $(BUILD_DIR)/test_test_dns_update.o: test_dns_update.cpp message.h rr.h update_processor.h zone_authority.h
 $(BUILD_DIR)/test_qp_test_query_processor.o: test_query_processor.cpp query_processor.h zone.h rr.h
+$(BUILD_DIR)/test_rr_test_rr_types.o: test_rr_types.cpp message.h rr.h rra.h rraaaa.h rrcert.h rrcname.h rrdhcid.h rrmx.h rrns.h rrptr.h rrsoa.h rrtxt.h zoneFileLoader.h zone.h
 
 .PHONY: all test test-integration test-all clean rebuild run-test
