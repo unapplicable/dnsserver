@@ -232,10 +232,8 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 					string rr_name(rr->name);
 					
 					if (
-						(rr->type == qrr->type && 
-						0 == rr_name.compare(0, qrr_name.length(), qrr_name)
-						) ||
-						(qrr->type == RR::TYPESTAR)
+						(rr->type == qrr->type && rr_name == qrr_name) ||
+						(qrr->type == RR::TYPESTAR && rr_name == qrr_name)
 						)
 					{
 						RR *arr = rr->clone();
@@ -244,9 +242,6 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 						arr->ttl = 10 * 60; // 10 minutes
 												
 						reply->an.push_back(arr);
-
-						if (qrr->type != RR::TYPESTAR)
-							break;
 					} else if (rr->type == RR::NS && 0 == rr_name.compare(0, qrr_name.length(), qrr_name)) {
 						rrNs = rr;
 					}

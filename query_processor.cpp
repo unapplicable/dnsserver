@@ -16,15 +16,11 @@ void QueryProcessor::findMatches(const RR* query_rr,
         RR *rr = *rriter;
         string rr_name = rr->name;
         
-        // Match by type and name prefix
-        if ((rr->type == query_rr->type && 
-             0 == rr_name.compare(0, qrr_name.length(), qrr_name)) ||
-            (query_rr->type == RR::TYPESTAR))
+        // Match by exact name and type, or wildcard type
+        if ((rr->type == query_rr->type && rr_name == qrr_name) ||
+            (query_rr->type == RR::TYPESTAR && rr_name == qrr_name))
         {
             matches.push_back(rr);
-            
-            if (query_rr->type != RR::TYPESTAR)
-                break;
         }
         else if (rr->type == RR::NS && 
                  0 == rr_name.compare(0, qrr_name.length(), qrr_name))
