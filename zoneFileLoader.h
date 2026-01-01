@@ -19,6 +19,5 @@ private:
 	static void handleOrigin(const std::vector<std::string>& tokens, Zone*& parent, Zone*& current, t_zones& zones, std::string& previousName);
 	static void handleACL(const std::vector<std::string>& tokens, Zone* parent, Zone*& current);
 	static void handleResourceRecord(const std::vector<std::string>& tokens, Zone* current, std::string& previousName);
-	static std::string processRecordName(const std::string& name, const Zone* zone, const std::string& previousName);
 };
 #endif

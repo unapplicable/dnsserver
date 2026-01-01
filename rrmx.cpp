@@ -6,10 +6,10 @@ std::ostream& RRMX::dumpContents(std::ostream& os) const
 	return os << std::dec << pref << " " << rdata;
 };
 
-void RRMX::fromStringContents(const std::vector<std::string>& tokens)
+void RRMX::fromStringContents(const std::vector<std::string>& tokens, const std::string& origin)
 {
 	pref = atoi(tokens[0].c_str());
-	rdata = tokens[1];	
+	rdata = process_domain_name(tokens[1], origin);
 };
 
 bool RRMX::unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery)

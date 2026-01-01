@@ -6,9 +6,9 @@ std::ostream& RRCNAME::dumpContents(std::ostream& os) const
 	return os << rdata;
 }
 
-void RRCNAME::fromStringContents(const std::vector<std::string>& tokens)
+void RRCNAME::fromStringContents(const std::vector<std::string>& tokens, const std::string& origin)
 {
-	rdata = tokens[0];
+	rdata = process_domain_name(tokens[0], origin);
 }
 
 bool RRCNAME::unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery)

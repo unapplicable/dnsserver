@@ -20,7 +20,7 @@ class RRSoa : public RR
 		virtual bool unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery);
 		virtual void packContents(char* data, unsigned int len, unsigned int& offset);
 		virtual std::ostream& dumpContents(std::ostream& os) const;
-		virtual void fromStringContents(const std::vector<std::string>& v);
+		virtual void fromStringContents(const std::vector<std::string>& v, const std::string& origin = "");
 		virtual RR* clone() const { return new RRSoa(*this); }
 		virtual ~RRSoa() {};
 };

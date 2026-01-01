@@ -11,7 +11,7 @@ void RRTXT::packContents(char* data, unsigned int /* len */, unsigned int& offse
 	(unsigned short&)data[oldoffset] = htons(packedrdlen);
 }
 
-void RRTXT::fromStringContents(const std::vector<std::string>& tokens)
+void RRTXT::fromStringContents(const std::vector<std::string>& tokens, const std::string& /* origin */)
 {
 	for (unsigned int i = 0; i < tokens.size(); ++i)
 					rdata += (i != 0 ? " " : "" )+ tokens[i];

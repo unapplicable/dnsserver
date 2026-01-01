@@ -190,9 +190,12 @@ RR* RR::createByType(RRType type)
 	}
 }
 
-void RR::fromString(const std::vector<std::string>& tokens)
+void RR::fromString(const std::vector<std::string>& tokens, const std::string& origin, const std::string& previousName)
 {
-	name = dns_name_tolower(tokens[0]);
+	// Handle empty name (use previous name)
+	std::string rawName = tokens[0].empty() && !previousName.empty() ? previousName : tokens[0];
+	
+	name = process_domain_name(rawName, origin);
 
 	if (tokens[1] == "IN")
 		rrclass = CLASSIN;
@@ -207,10 +210,10 @@ void RR::fromString(const std::vector<std::string>& tokens)
 
 	type = RRTypeFromString(tokens[2]);
 
-	fromStringContents(std::vector<std::string>(tokens.begin() + 3, tokens.end()));
+	fromStringContents(std::vector<std::string>(tokens.begin() + 3, tokens.end()), origin);
 }
 
-void RR::fromStringContents(const std::vector<std::string>& /* tokens */)
+void RR::fromStringContents(const std::vector<std::string>& /* tokens */, const std::string& /* origin */)
 {
 	throw std::exception();
 }

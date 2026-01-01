@@ -6,9 +6,9 @@ std::ostream& RRPTR::dumpContents(std::ostream& os) const
 	return os << rdata;
 }
 
-void RRPTR::fromStringContents(const std::vector<std::string>& tokens)
+void RRPTR::fromStringContents(const std::vector<std::string>& tokens, const std::string& origin)
 {
-	rdata = tokens[0];
+	rdata = process_domain_name(tokens[0], origin);
 }
 
 bool RRPTR::unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery)

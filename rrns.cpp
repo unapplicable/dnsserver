@@ -1,9 +1,9 @@
 #include "socket.h"
 #include "rrns.h"
 
-void RRNS::fromStringContents(const std::vector<std::string>& tokens)
+void RRNS::fromStringContents(const std::vector<std::string>& tokens, const std::string& origin)
 {
-	rdata = tokens[0];
+	rdata = process_domain_name(tokens[0], origin);
 }
 
 std::ostream& RRNS::dumpContents(std::ostream& os) const

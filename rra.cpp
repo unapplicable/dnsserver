@@ -19,7 +19,7 @@ std::ostream& RRA::dumpContents(std::ostream& os) const
 	return os << bin2a(rdata);
 }
 
-void RRA::fromStringContents(const std::vector<std::string>& tokens)
+void RRA::fromStringContents(const std::vector<std::string>& tokens, const std::string& /* origin */)
 {
 	rdata = a2bin(tokens[0]);
 }

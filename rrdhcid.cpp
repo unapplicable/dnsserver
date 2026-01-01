@@ -30,7 +30,7 @@ std::ostream& RRDHCID::dumpContents(std::ostream& os) const
 	return os;
 }
 
-void RRDHCID::fromStringContents(const std::vector<std::string>& tokens)
+void RRDHCID::fromStringContents(const std::vector<std::string>& tokens, const std::string& /* origin */)
 {
 	if (tokens.size() > 0)
 	{

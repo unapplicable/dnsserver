@@ -55,62 +55,18 @@ void ZoneFileLoader::handleACL(const std::vector<std::string>& tokens, Zone* par
 	current = acl;
 }
 
-std::string ZoneFileLoader::processRecordName(const std::string& name, const Zone* zone, const std::string& previousName)
-{
-	if (name.empty())
-		return previousName;
-	
-	if (name[name.length() - 1] != '.')
-	{
-		return name + "." + zone->name;
-	}
-	
-	return name;
-}
-
 void ZoneFileLoader::handleResourceRecord(const std::vector<std::string>& tokens, Zone* current, std::string& previousName)
 {
-	std::vector<std::string> mutableTokens = tokens;
-	
 	RR::RRType rrtype = RR::RRTypeFromString(tokens[2]);
 	RR* rr = RR::createByType(rrtype);
 	
-	mutableTokens[0] = processRecordName(tokens[0], current, previousName);
+	// Get origin without trailing dot for fromString processing
+	std::string origin = normalize_dns_name(current->name);
 	
-	// Process domain names in rdata for types that contain them
-	if (rrtype == RR::CNAME || rrtype == RR::NS || rrtype == RR::PTR)
-	{
-		// These types have a single domain name as rdata (token index 3)
-		if (mutableTokens.size() > 3)
-		{
-			mutableTokens[3] = processRecordName(tokens[3], current, "");
-		}
-	}
-	else if (rrtype == RR::MX)
-	{
-		// MX has preference then domain name (token indices 3 and 4)
-		if (mutableTokens.size() > 4)
-		{
-			mutableTokens[4] = processRecordName(tokens[4], current, "");
-		}
-	}
-	else if (rrtype == RR::SOA)
-	{
-		// SOA has two domain names: ns and mail (token indices 3 and 4)
-		if (mutableTokens.size() > 3)
-		{
-			mutableTokens[3] = processRecordName(tokens[3], current, "");
-		}
-		if (mutableTokens.size() > 4)
-		{
-			mutableTokens[4] = processRecordName(tokens[4], current, "");
-		}
-	}
+	rr->fromString(tokens, origin, previousName);
 	
 	if (!tokens[0].empty())
-		previousName = mutableTokens[0];
-	
-	rr->fromString(mutableTokens);
+		previousName = rr->name;
 	
 	std::cerr << "[" << current->name << "] " << *rr << std::endl;
 	current->addRecord(rr);

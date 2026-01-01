@@ -10,7 +10,7 @@
 class RRCERT : public RR
 {
 	public:		
-		virtual void fromStringContents(const std::vector<std::string>& v);
+		virtual void fromStringContents(const std::vector<std::string>& v, const std::string& origin = "");
 		std::ostream& dumpContents(std::ostream&) const;
 		virtual RR* clone() const { return new RRCERT(*this); }
 		virtual ~RRCERT() {};

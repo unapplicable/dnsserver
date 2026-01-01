@@ -13,10 +13,10 @@ std::ostream& RRSoa::dumpContents(std::ostream& os) const
 	return os;
 };
 
-void RRSoa::fromStringContents(const std::vector<std::string>& tokens)
+void RRSoa::fromStringContents(const std::vector<std::string>& tokens, const std::string& origin)
 {
-	ns = tokens[0];
-	mail = tokens[1];
+	ns = process_domain_name(tokens[0], origin);
+	mail = process_domain_name(tokens[1], origin);
 	serial = atoi(tokens[2].c_str());
 	refresh = atoi(tokens[3].c_str());
 	retry = atoi(tokens[4].c_str());

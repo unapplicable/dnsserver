@@ -9,7 +9,7 @@ std::ostream& RRCERT::dumpContents(std::ostream& os) const
     return os;
 }
 
-void RRCERT::fromStringContents(const std::vector<std::string>& tokens)
+void RRCERT::fromStringContents(const std::vector<std::string>& tokens, const std::string& /* origin */)
 {
 	rdata.append("\x01\x00\x00\x00\x00", 5);
 	for (unsigned int i = 0; i < tokens[0].length(); i += 2)

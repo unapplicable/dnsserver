@@ -25,7 +25,7 @@ static std::string aaaa2bin(const std::string& in)
 	return res;
 }
 
-void RRAAAA::fromStringContents(const std::vector<std::string>& tokens)
+void RRAAAA::fromStringContents(const std::vector<std::string>& tokens, const std::string& /* origin */)
 {
 	rdata = aaaa2bin(tokens[0]);
 }

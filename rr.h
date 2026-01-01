@@ -27,6 +27,21 @@ inline std::string normalize_dns_name(const std::string& name) {
 	return name;
 }
 
+// Utility function to process domain name with origin
+inline std::string process_domain_name(const std::string& name, const std::string& origin) {
+	std::string result = name;
+	
+	// Append origin if name is relative (no trailing dot)
+	if (!result.empty() && result[result.length()-1] != '.' && !origin.empty())
+		result = result + "." + origin;
+	
+	// Ensure trailing dot
+	if (!result.empty() && result[result.length()-1] != '.')
+		result += ".";
+	
+	return dns_name_tolower(result);
+}
+
 #define SC(x) case x: return #x
 #define SC2(x, y) case x: return #y;
 #define MATCHSTRING(haystack, needle, match) if (haystack == #needle) return match;
@@ -51,8 +66,8 @@ public:
 	void pack(char *data, unsigned int len, unsigned int& offset);
 	virtual void packContents(char* data, unsigned int len, unsigned int& offset);
 	virtual std::ostream& dumpContents(std::ostream& os) const;
-	virtual void fromString(const std::vector<std::string>& v);
-	virtual void fromStringContents(const std::vector<std::string>& v);
+	virtual void fromString(const std::vector<std::string>& v, const std::string& origin = "", const std::string& previousName = "");
+	virtual void fromStringContents(const std::vector<std::string>& v, const std::string& origin = "");
 	virtual RR* clone() const { return new RR(*this); }
 	virtual ~RR() {};
 
