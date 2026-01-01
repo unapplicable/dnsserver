@@ -43,6 +43,83 @@ void dump(char *buf, int len)
 }
 
 
+void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADDR_STORAGE *addr, int addrlen,
+                 Message *request, vector<Zone *>& zones, unsigned long fromaddr, bool is_tcp = false)
+{
+	if (request->qd.size() != 1 || !request->qd[0])
+	{
+		return;
+	}
+	
+	const RR *qrr = request->qd[0];
+	
+	// Find zone using ZoneAuthority
+	ZoneAuthority authority(zones);
+	ZoneLookupResult lookup = authority.findZoneForName(qrr->name, fromaddr);
+	
+	if (!lookup.found)
+	{
+		return;
+	}
+	
+	Zone *z = lookup.authorized ? lookup.zone : lookup.zone;
+	
+	Message *reply = new Message();
+	reply->id = request->id;
+	reply->opcode = Message::QUERY;
+	reply->qd.push_back(qrr->clone());
+	reply->truncation = false;
+	reply->query = false;
+	reply->authoritative = true;
+	reply->rcode = Message::CODENOERROR;
+	reply->recursionavailable = reply->recursiondesired = request->recursiondesired;
+	
+	// Use QueryProcessor to find matching records
+	{
+		ZoneDatabase zonedb(z);
+		vector<RR*> matches;
+		RR *rrNs = nullptr;
+		QueryProcessor::findMatches(qrr, zonedb, matches, &rrNs);
+		
+		// Clone matches and add to answer section
+		for (vector<RR*>::const_iterator match_iter = matches.begin(); 
+		     match_iter != matches.end(); ++match_iter)
+		{
+			RR *arr = (*match_iter)->clone();
+			arr->query = false;
+			arr->ttl = 10 * 60; // 10 minutes
+			reply->an.push_back(arr);
+		}
+		
+		if (reply->an.size() == 0 && rrNs != nullptr) {
+			RR *arr = rrNs->clone();
+			arr->query = false;
+			arr->ttl = 10 * 60; // 10 minutes
+			reply->ns.push_back(arr);
+			reply->authoritative = true;
+		}
+	}
+	
+	cout << *reply;
+	
+	char response[0x10000];
+	unsigned int response_len = 0;
+	reply->pack(response, sizeof(response), response_len);
+	
+	if (is_tcp)
+	{
+		uint16_t tcp_length = htons(response_len);
+		send(s, (char*)&tcp_length, 2, 0);
+		send(s, response, response_len, 0);
+	}
+	else
+	{
+		sendto(s, response, response_len, 0, (sockaddr*)addr, addrlen);
+	}
+	
+	delete reply;
+}
+
 void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADDR_STORAGE *addr, int addrlen, 
                   Message *request, vector<Zone *>& zones, unsigned long fromaddr, bool is_tcp = false)
 {
@@ -156,7 +233,6 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 
 	//dump(buf, len);
 
-	Message *reply = NULL;
 	Message *msgtest = new Message();
 	unsigned int offset = 0;
 	if (!msgtest->unpack(buf, len, offset))
@@ -177,115 +253,10 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 	
 	if (msgtest->query && msgtest->opcode == Message::QUERY)
 	{
-		if (msgtest->qd.size() == 1 && msgtest->qd[0])
-		{
-			const RR *qrr = msgtest->qd[0];
-			vector<Zone *>::const_iterator ziter;
-			for (ziter = zones.begin(); ziter != zones.end(); ++ziter)
-			{
-				Zone *z = *ziter;
-
-				string qrr_name(qrr->name), z_name(z->name);
-
-				string::size_type zpos = qrr_name.rfind(z_name);
-				if (zpos == string::npos || zpos != (qrr_name.length() - z_name.length()))
-					continue;
-
-				if (z->acl.size())
-				{
-					Zone* matched = NULL;
-					for (vector<AclEntry>::const_iterator i = z->acl.begin(); i != z->acl.end(); ++i)
-					{
-						if (i->subnet.match(fromaddr))
-						{
-							char tmp[20];
-							char tmp2[20];
-							strcpy(tmp, inet_ntoa(*reinterpret_cast<const in_addr*>(&i->subnet.ip)));
-							strcpy(tmp2, inet_ntoa(*reinterpret_cast<const in_addr*>(&i->subnet.mask)));
-
-							printf("ACL: matched %s/%s\n", tmp, tmp2);
-							matched = i->zone;
-							break;
-						}
-					}
-
-					if (matched != NULL)
-						z = matched;
-				}
-
-				reply = new Message();
-				reply->id = msgtest->id;
-				reply->opcode = Message::QUERY;
-				reply->qd.push_back(qrr->clone());
-				reply->truncation = false;
-				reply->query = false;
-				reply->authoritative = true;
-				reply->rcode = Message::CODENOERROR;
-				reply->recursionavailable = reply->recursiondesired = msgtest->recursiondesired;
-
-				// Use QueryProcessor to find matching records
-				ZoneDatabase zonedb(z);
-				vector<RR*> matches;
-				RR *rrNs = nullptr;
-				QueryProcessor::findMatches(qrr, zonedb, matches, &rrNs);
-				
-				// Clone matches and add to answer section
-				for (vector<RR*>::const_iterator match_iter = matches.begin(); 
-				     match_iter != matches.end(); ++match_iter)
-				{
-					RR *arr = (*match_iter)->clone();
-					arr->query = false;
-					arr->ttl = 10 * 60; // 10 minutes
-					reply->an.push_back(arr);
-				}
-
-				if (reply->an.size() == 0 && rrNs != nullptr) {
-					RR *arr = rrNs->clone();
-					arr->query = false;
-					
-					arr->ttl = 10 * 60; // 10 minutes
-											
-					reply->ns.push_back(arr);
-					reply->authoritative = true;
-				}
-				
-				break;
-			}
-
-			if (reply == NULL || (reply->an.size() == 0 && reply->ns.size() == 0))
-			{
-				reply = new Message();
-				reply->id = msgtest->id;
-				reply->opcode = Message::QUERY;
-				reply->qd.push_back(qrr->clone());
-				reply->truncation = false;
-				reply->query = false;
-				reply->authoritative = true;
-				reply->recursionavailable = reply->recursiondesired = msgtest->recursiondesired;
-				reply->rcode = Message::CODENAMEERROR;
-			}
-		}
+		handleQuery(s, buf, len, from, addr, addrlen, msgtest, zones, fromaddr, is_tcp);
+		delete msgtest;
+		return;
 	}
-		
-	if (reply != NULL)
-	{
-		char packet[0x10000] = {};
-		unsigned int packetsize = 0;
-		
-		cout << *reply << endl;
-
-		reply->pack(packet, (unsigned int)sizeof(packet), packetsize);
-		//dump(packet, packetsize);
-		
-		sendto(s, packet, packetsize, 0, (sockaddr *)addr, addrlen);
-		delete reply;
-	} else
-	{
-		printf("NOANS\n");
-		
-	}
-
-	fflush(stdout);
 
 	delete msgtest;
 }

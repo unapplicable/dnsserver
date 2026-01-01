@@ -13,11 +13,7 @@ bool UpdateProcessor::checkPrerequisites(const Message* request,
         
         if (prereq->rrclass == RR::CLASSANY)
         {
-            if (prereq->type == RR::SOA)
-            {
-                continue;  // SOA prerequisites are special
-            }
-            else if (prereq->type == RR::TYPESTAR)
+            if (prereq->type == RR::TYPESTAR)
             {
                 // Prerequisite: name is in use (any type)
                 if (!zonedb.hasRecordWithName(prereq->name))
