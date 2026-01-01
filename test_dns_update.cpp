@@ -306,7 +306,7 @@ TEST_CASE("RRDHCID with realistic base64-like identifier", "[dhcid][082512b]")
     bool result = rr->unpack(packet, sizeof(packet), offset, false);
     
     CHECK(result);
-    CHECK(rr->name == "client.local");
+    CHECK(rr->name == "client.local.");
     CHECK(rr->identifier == std::string(dhcid_hash, 32));
     
     delete rr;
@@ -365,11 +365,11 @@ TEST_CASE("UPDATE message with pointers and A record", "[integration][082512b]")
     CHECK(msg.ns.size() == 1);  // Update section
     
     // Verify the zone
-    CHECK(msg.qd[0]->name == "example.com");
+    CHECK(msg.qd[0]->name == "example.com.");
     CHECK(msg.qd[0]->type == RR::SOA);
     
     // Verify the update record
-    CHECK(msg.ns[0]->name == "host.example.com");
+    CHECK(msg.ns[0]->name == "host.example.com.");
     CHECK(msg.ns[0]->type == RR::A);
     CHECK(msg.ns[0]->ttl == 3600);
     CHECK(msg.ns[0]->rdlen == 4);
@@ -651,12 +651,12 @@ TEST_CASE("UPDATE message sections parsed correctly", "[update][0eb4fe3]")
     CHECK(msg.ns.size() == 1);   // Update section
     
     // Verify prerequisite has TTL and RDATA (full RR format)
-    CHECK(msg.an[0]->name == "test.example.com");
+    CHECK(msg.an[0]->name == "test.example.com.");
     CHECK(msg.an[0]->ttl == 0);
     CHECK(msg.an[0]->rdlen == 0);
     
     // Verify update has TTL and RDATA
-    CHECK(msg.ns[0]->name == "test.example.com");
+    CHECK(msg.ns[0]->name == "test.example.com.");
     CHECK(msg.ns[0]->type == RR::A);
     CHECK(msg.ns[0]->ttl == 3600);
     CHECK(msg.ns[0]->rdlen == 4);
@@ -695,7 +695,7 @@ TEST_CASE("QUERY message question section is query-style", "[query][0eb4fe3]")
     CHECK(result);
     CHECK(msg.opcode == Message::QUERY);
     CHECK(msg.qd.size() == 1);
-    CHECK(msg.qd[0]->name == "www.example.com");
+    CHECK(msg.qd[0]->name == "www.example.com.");
     CHECK(msg.qd[0]->type == RR::A);
     CHECK(msg.qd[0]->rrclass == RR::CLASSIN);
     // Query section doesn't have TTL or RDATA
@@ -819,7 +819,7 @@ TEST_CASE("DNS names are stored lowercase", "[case][refactor]")
     
     CHECK(result);
     // Name should be stored lowercase
-    CHECK(rr->name == "www.example.com");
+    CHECK(rr->name == "www.example.com.");
     
     delete rr;
 }
@@ -920,7 +920,7 @@ TEST_CASE("UPDATE message finds zone with mixed case", "[usecase][update][case]"
     REQUIRE(msg.qd.size() == 1);
     
     // Zone name should be stored lowercase
-    CHECK(msg.qd[0]->name == "example.com");
+    CHECK(msg.qd[0]->name == "example.com.");
     
     // The zone should match despite case difference
     std::string zone_name_normalized(msg.qd[0]->name);

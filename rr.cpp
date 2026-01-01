@@ -242,6 +242,10 @@ bool RR::unpack(char *data, unsigned int len, unsigned int& offset, bool isQuery
 	name.clear();
 
 	name = dns_name_tolower(unpackName(data, len, offset));
+	
+	// Ensure name has trailing dot for consistency with zone file loading
+	if (!name.empty() && name[name.length()-1] != '.')
+		name += '.';
 
 	if (offset + 1 >= len)
 		return false;
