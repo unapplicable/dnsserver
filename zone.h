@@ -62,6 +62,9 @@ public:
 	                  const std::string& rdata = "");
 	RR* findSOARecord() const;
 	const std::vector<RR*>& getAllRecords() const { return rrs; }
+	
+	// SOA serial management
+	bool incrementSerial();
 };
 
 typedef std::vector<Zone*> t_zones;

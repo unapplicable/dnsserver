@@ -177,7 +177,7 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 		UpdateProcessor::applyUpdates(request, *target_zone, update_error);
 		
 		// Increment SOA serial
-		ZoneAuthority::incrementSerial(target_zone);
+		target_zone->incrementSerial();
 		
 		pthread_mutex_unlock(&g_zone_mutex);
 		// CRITICAL SECTION END

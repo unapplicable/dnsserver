@@ -25,9 +25,6 @@ public:
     ZoneLookupResult findZoneForName(const std::string& zone_name, 
                                      unsigned long client_addr) const;
     
-    // Increment SOA serial for a zone
-    static bool incrementSerial(Zone* zone);
-    
 private:
     const std::vector<Zone*>& zones_;
 };

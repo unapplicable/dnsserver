@@ -95,3 +95,22 @@ RR* Zone::findSOARecord() const
     
     return NULL;
 }
+
+bool Zone::incrementSerial()
+{
+    for (vector<RR*>::iterator it = rrs.begin(); it != rrs.end(); ++it)
+    {
+        RR* rr = *it;
+        if (rr->type == RR::SOA)
+        {
+            RRSoa* soa = dynamic_cast<RRSoa*>(rr);
+            if (soa)
+            {
+                soa->serial++;
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
