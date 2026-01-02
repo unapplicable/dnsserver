@@ -1,0 +1,14 @@
+$ORIGIN test.example.com.
+$ACL 0.0.0.0/0
+test.example.com. IN SOA ns1.test.example.com. admin.test.example.com. 2025123101 3600 1800 604800 86400
+test.example.com. IN NS ns1.test.example.com.
+ns1.test.example.com. IN A 127.0.0.1
+a.test.example.com. IN A 10.0.1.1
+b.test.example.com. IN A 10.0.1.2
+c.test.example.com. IN A 10.0.1.3
+x.y.test.example.com. IN A 10.0.2.1
+a.b.c.test.example.com. IN A 10.0.2.2
+deep.nested.sub.test.example.com. IN A 10.0.2.3
+multi.test.example.com. IN A 10.0.3.1
+multi.test.example.com. IN AAAA ::1
+multi.test.example.com. IN TXT "test record"

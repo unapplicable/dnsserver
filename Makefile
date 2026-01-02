@@ -106,8 +106,9 @@ $(BUILD_DIR)/test_rr_%.o: %.cpp | $(BUILD_DIR)
 # Integration tests
 test-integration: $(SERVER_BIN)
 	@echo "Running integration tests..."
-	@chmod +x test_update.sh
+	@chmod +x test_update.sh test_wildcard_simple.sh
 	./test_update.sh
+	./test_wildcard_simple.sh
 
 # Full test suite
 test-all: test test-integration
