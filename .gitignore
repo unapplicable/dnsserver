@@ -1,36 +1,10 @@
-# Build artifacts
+*.o
 build/
 bin/
-*.o
-version.h
-
-# Executables
 dnsserver
 test_dns_update
-test_byte_order
-test_fixed_packet
-test_manual_parse
-test_prod_simple
-test_unpack_name
-hexdump_test
-parse_hex_packet
-
-# Test artifacts
+version.h
 *.log
-*.zone.tmp
-test_update.zone
-
-# Editor/IDE files
-*.swp
-*.swo
-*~
-.vscode/
-.idea/
-
-# Temporary files
-*.tmp
 *.bak
-# Local development files
 one.md
 conversation_history.txt
-test_tsig_complete.sh
