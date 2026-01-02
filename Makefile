@@ -41,17 +41,25 @@ TEST_RR_SOURCES = test_rr_types.cpp message.cpp rr.cpp zoneFileLoader.cpp \
                   rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rrtsig.cpp \
                   tsig.cpp
 
+TEST_TSIG_SOURCES = test_tsig.cpp tsig.cpp rrtsig.cpp rr.cpp \
+                    message.cpp zone.cpp zoneFileLoader.cpp zone_authority.cpp \
+                    rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
+                    rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp \
+                    update_processor.cpp query_processor.cpp
+
 # Object files
 SERVER_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SERVER_SOURCES))
 TEST_UPDATE_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_%.o,$(TEST_UPDATE_SOURCES))
 TEST_QUERY_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_qp_%.o,$(TEST_QUERY_SOURCES))
 TEST_RR_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_rr_%.o,$(TEST_RR_SOURCES))
+TEST_TSIG_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_tsig_%.o,$(TEST_TSIG_SOURCES))
 
 # Executables
 SERVER_BIN = $(BIN_DIR)/dnsserver
 TEST_UPDATE_BIN = $(BIN_DIR)/test_dns_update
 TEST_QUERY_BIN = $(BIN_DIR)/test_query_processor
 TEST_RR_BIN = $(BIN_DIR)/test_rr_types
+TEST_TSIG_BIN = $(BIN_DIR)/test_tsig
 
 # Default target
 all: $(VERSION_FILE) $(SERVER_BIN)
@@ -76,13 +84,15 @@ $(SERVER_BIN): $(SERVER_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(SERVER_OBJECTS) $(LDFLAGS)
 
 # Build tests
-test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN)
+test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN) $(TEST_TSIG_BIN)
 	@echo "Running UPDATE unit tests..."
 	$(TEST_UPDATE_BIN)
 	@echo "Running QueryProcessor unit tests..."
 	$(TEST_QUERY_BIN)
 	@echo "Running RR types unit tests..."
 	$(TEST_RR_BIN)
+	@echo "Running TSIG unit tests..."
+	$(TEST_TSIG_BIN)
 
 $(TEST_UPDATE_BIN): $(TEST_UPDATE_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_UPDATE_OBJECTS) $(TEST_LDFLAGS)
@@ -92,6 +102,9 @@ $(TEST_QUERY_BIN): $(TEST_QUERY_OBJECTS) $(BUILD_DIR)/query_processor.o | $(BIN_
 
 $(TEST_RR_BIN): $(TEST_RR_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_RR_OBJECTS) $(TEST_LDFLAGS)
+
+$(TEST_TSIG_BIN): $(TEST_TSIG_OBJECTS) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $(TEST_TSIG_OBJECTS) -lpthread -lssl -lcrypto
 
 # Build object files
 $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
@@ -106,12 +119,16 @@ $(BUILD_DIR)/test_qp_%.o: %.cpp | $(BUILD_DIR)
 $(BUILD_DIR)/test_rr_%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/test_tsig_%.o: %.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 # Integration tests
 test-integration: $(SERVER_BIN)
 	@echo "Running integration tests..."
-	@chmod +x test_update.sh test_wildcard_simple.sh
+	@chmod +x test_update.sh test_wildcard_simple.sh test_tsig.sh
 	./test_update.sh
 	./test_wildcard_simple.sh
+	./test_tsig.sh
 
 # Full test suite
 test-all: test test-integration

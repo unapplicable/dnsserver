@@ -118,44 +118,131 @@ string TSIG::buildSigningData(const char* message,
     string data;
     
     if (include_mac) {
-        // For responses, include request MAC
+        // For responses, include request MAC (2-byte length + MAC)
         uint16_t mac_size = htons(tsig->mac.length());
         data.append((char*)&mac_size, 2);
         data.append(tsig->mac);
     }
     
-    // Message without TSIG (entire message minus TSIG record)
-    // For simplicity, we'll include the full message
-    // In production, should strip TSIG from AR section
-    data.append(message, message_len);
+    // DNS Message without TSIG
+    // Per RFC 2845: entire DNS message with TSIG RR removed and ARCOUNT decremented
     
-    // TSIG variables (used in signing)
-    // Algorithm name
-    string algo_wire;
-    unsigned int algo_offset = 0;
+    if (message_len < 12) {
+        return data; // Invalid message
+    }
+    
+    // Step 1: Parse header to get counts
+    uint16_t qdcount = ntohs(*(uint16_t*)&message[4]);
+    uint16_t ancount = ntohs(*(uint16_t*)&message[6]);
+    uint16_t nscount = ntohs(*(uint16_t*)&message[8]);
+    uint16_t arcount = ntohs(*(uint16_t*)&message[10]);
+    
+    // Step 2: Find where TSIG record starts (it's the last AR record)
+    unsigned int offset = 12; // Start after DNS header
+    
+    // Helper lambda to skip a domain name
+    auto skip_name = [&]() {
+        while (offset < message_len) {
+            unsigned char len = (unsigned char)message[offset];
+            if (len == 0) {
+                offset++;
+                return;
+            }
+            if ((len & 0xC0) == 0xC0) { // Compression pointer
+                offset += 2;
+                return;
+            }
+            offset += len + 1;
+        }
+    };
+    
+    // Helper lambda to skip an RR
+    auto skip_rr = [&]() {
+        skip_name(); // Skip name
+        if (offset + 10 > message_len) return;
+        uint16_t rdlength = ntohs(*(uint16_t*)&message[offset + 8]);
+        offset += 10 + rdlength; // type(2) + class(2) + ttl(4) + rdlen(2) + rdata
+    };
+    
+    // Skip QD section
+    for (uint16_t i = 0; i < qdcount && offset < message_len; i++) {
+        skip_name();
+        offset += 4; // type + class
+    }
+    
+    // Skip AN section
+    for (uint16_t i = 0; i < ancount && offset < message_len; i++) {
+        skip_rr();
+    }
+    
+    // Skip NS section
+    for (uint16_t i = 0; i < nscount && offset < message_len; i++) {
+        skip_rr();
+    }
+    
+    // Skip AR section except last record (TSIG)
+    for (uint16_t i = 0; i < arcount - 1 && offset < message_len; i++) {
+        skip_rr();
+    }
+    
+    // Now offset points to where TSIG starts
+    // Copy message up to TSIG, but with adjusted ARCOUNT in header
+    
+    // Copy header with decremented ARCOUNT
+    data.append(message, 10); // ID through NSCOUNT
+    uint16_t new_arcount = htons(arcount > 0 ? arcount - 1 : 0);
+    data.append((char*)&new_arcount, 2);
+    
+    // Copy rest of message up to (but not including) TSIG
+    if (offset > 12 && offset <= message_len) {
+        data.append(&message[12], offset - 12);
+    }
+    
+    // TSIG Variables (RFC 2845 section 3.4.2)
+    // These are NOT in wire format, but specific encoding:
+    
+    // TSIG record name (wire format)
+    char name_buf[256];
+    unsigned int name_offset = 0;
+    RR::packName(name_buf, sizeof(name_buf), name_offset, tsig->name);
+    data.append(name_buf, name_offset);
+    
+    // TSIG class (2 bytes) - ANY
+    uint16_t tsig_class = htons(RR::CLASSANY);
+    data.append((char*)&tsig_class, 2);
+    
+    // TSIG TTL (4 bytes) - always 0
+    uint32_t tsig_ttl = 0;
+    data.append((char*)&tsig_ttl, 4);
+    
+    // Algorithm name (wire format)
     char algo_buf[256];
+    unsigned int algo_offset = 0;
     RR::packName(algo_buf, sizeof(algo_buf), algo_offset, tsig->algorithm);
     data.append(algo_buf, algo_offset);
     
-    // Time signed (48 bits)
+    // Time signed (48 bits: 16-bit high + 32-bit low)
     uint16_t time_high = htons(tsig->time_signed_high);
     uint32_t time_low = htonl(tsig->time_signed_low);
     data.append((char*)&time_high, 2);
     data.append((char*)&time_low, 4);
     
-    // Fudge
+    // Fudge (16 bits)
     uint16_t fudge = htons(tsig->fudge);
     data.append((char*)&fudge, 2);
     
-    // Error
+    // Error (16 bits)
     uint16_t error = htons(tsig->error);
     data.append((char*)&error, 2);
     
-    // Other length and data
+    // Other length (16 bits)
     uint16_t other_len = htons(tsig->other_len);
     data.append((char*)&other_len, 2);
-    if (tsig->other_len > 0)
+    
+    // Other data (if present)
+    if (tsig->other_len > 0) {
         data.append(tsig->other_data);
+    }
     
     return data;
 }

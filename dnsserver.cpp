@@ -9,6 +9,7 @@
 #include <ctime>
 #include <cstring>
 #include <pthread.h>
+#include <openssl/opensslv.h>
 #include "socket.h"
 
 using namespace std;
@@ -217,7 +218,6 @@ void handleUpdate(SOCKET s, char *buf, int len, char * /*from*/, SOCKADDR_STORAG
 		cout << "UPDATE: Target zone found: " << target_zone->name << endl << flush;
 		
 		// TSIG Authentication Check
-		cout << "UPDATE: Checking TSIG (key configured: " << (target_zone->tsig_key ? "yes" : "no") << ")" << endl << flush;
 		if (target_zone->tsig_key)
 		{
 			string tsig_error;
@@ -543,6 +543,7 @@ int main(int argc, char* argv[])
 	vector<string> zonedata;
 
 	cout << "dnsserver version " << VERSION << endl;
+	cout << "OpenSSL version " << OPENSSL_VERSION_TEXT << endl;
 
 	if (argc < 3)
 	{

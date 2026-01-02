@@ -30,3 +30,7 @@ test_update.zone
 # Temporary files
 *.tmp
 *.bak
+# Local development files
+one.md
+conversation_history.txt
+test_tsig_complete.sh
