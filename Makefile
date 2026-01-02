@@ -2,8 +2,8 @@
 
 CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++14 -g -DLINUX
-LDFLAGS = -lpthread
-TEST_LDFLAGS = -lpthread -lCatch2Main -lCatch2
+LDFLAGS = -lpthread -lssl -lcrypto
+TEST_LDFLAGS = -lpthread -lssl -lcrypto -lCatch2Main -lCatch2
 
 # Version information
 GIT_HASH := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -20,23 +20,26 @@ SERVER_SOURCES = dnsserver.cpp message.cpp rr.cpp zoneFileLoader.cpp \
                  zone.cpp zone_authority.cpp \
                  update_processor.cpp query_processor.cpp \
                  rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                 rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
+                 rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rrtsig.cpp \
+                 tsig.cpp
 
 TEST_UPDATE_SOURCES = test_dns_update.cpp message.cpp rr.cpp zoneFileLoader.cpp \
                       zone.cpp zone_authority.cpp \
                       update_processor.cpp query_processor.cpp \
                       rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                      rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
+                      rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rrtsig.cpp \
+                      tsig.cpp
 
 TEST_QUERY_SOURCES = test_query_processor.cpp zone.cpp \
                      rr.cpp rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                     rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
+                     rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rrtsig.cpp
 
 TEST_RR_SOURCES = test_rr_types.cpp message.cpp rr.cpp zoneFileLoader.cpp \
                   zone.cpp zone_authority.cpp \
                   update_processor.cpp query_processor.cpp \
                   rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                  rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
+                  rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rrtsig.cpp \
+                  tsig.cpp
 
 # Object files
 SERVER_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SERVER_SOURCES))

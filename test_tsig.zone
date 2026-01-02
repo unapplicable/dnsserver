@@ -1,0 +1,6 @@
+$ORIGIN test-tsig.example.com.
+$ACL 0.0.0.0/0
+$TSIG testkey.example.com. hmac-sha256 K2tf3TRrmE7TJd+m2NPBuw==
+test-tsig.example.com. IN SOA ns1.test-tsig.example.com. admin.test-tsig.example.com. 2026010201 3600 1800 604800 86400
+test-tsig.example.com. IN NS ns1.test-tsig.example.com.
+ns1.test-tsig.example.com. IN A 127.0.0.1

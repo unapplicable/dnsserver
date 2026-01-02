@@ -11,6 +11,7 @@
 #include "rra.h"
 #include "rrcert.h"
 #include "rrdhcid.h"
+#include "rrtsig.h"
 
 #include <cstring>
 #include <exception>
@@ -182,6 +183,9 @@ RR* RR::createByType(RRType type)
 
 		case DHCID:
 			return new RRDHCID();
+
+		case TSIG:
+			return new RRTSIG();
 
 		default:
 			// For unknown RR types, return a base RR object

@@ -5,6 +5,7 @@
 #include <vector>
 #include "socket.h"
 #include "rr.h"
+#include "tsig.h"
 
 class Zone;
 
@@ -49,6 +50,10 @@ class Zone
 public:
 	std::string name;
 	std::vector<AclEntry> acl;
+	TSIG::Key* tsig_key;  // Optional TSIG key for UPDATE authentication
+	
+	Zone() : tsig_key(NULL) {}
+	~Zone() { delete tsig_key; }
 	
 	// Record operations (merged from ZoneDatabase)
 	std::vector<RR*> findRecordsByName(const std::string& name, 

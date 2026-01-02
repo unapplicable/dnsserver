@@ -22,6 +22,7 @@ using namespace std;
 #include "zone_authority.h"
 #include "update_processor.h"
 #include "query_processor.h"
+#include "tsig.h"
 #include "version.h"
 
 // Global mutex for zone modifications
@@ -169,7 +170,7 @@ void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADD
 	delete reply;
 }
 
-void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADDR_STORAGE *addr, int addrlen, 
+void handleUpdate(SOCKET s, char *buf, int len, char * /*from*/, SOCKADDR_STORAGE *addr, int addrlen, 
                   Message *request, vector<Zone *>& zones, unsigned long fromaddr, bool is_tcp = false)
 {
 	const RR *zone_rr = NULL;
@@ -214,6 +215,21 @@ void handleUpdate(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKAD
 		
 		Zone *target_zone = lookup.zone;
 		cout << "UPDATE: Target zone found: " << target_zone->name << endl << flush;
+		
+		// TSIG Authentication Check
+		cout << "UPDATE: Checking TSIG (key configured: " << (target_zone->tsig_key ? "yes" : "no") << ")" << endl << flush;
+		if (target_zone->tsig_key)
+		{
+			string tsig_error;
+			if (!TSIG::verify(request, buf, len, target_zone->tsig_key, tsig_error))
+			{
+				cout << "UPDATE: TSIG verification failed: " << tsig_error << endl << flush;
+				reply->rcode = Message::CODEREFUSED;
+				goto send_response;
+			}
+			cout << "UPDATE: TSIG verification successful" << endl << flush;
+		}
+		
 		cout << "UPDATE: Prerequisites: " << request->an.size() << ", Updates: " << request->ns.size() << endl << flush;
 		
 		// Check prerequisites using UpdateProcessor

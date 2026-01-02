@@ -18,6 +18,7 @@ private:
 	static std::vector<std::string> tokenize(const std::string& line);
 	static void handleOrigin(const std::vector<std::string>& tokens, Zone*& parent, Zone*& current, t_zones& zones, std::string& previousName);
 	static void handleACL(const std::vector<std::string>& tokens, Zone* parent, Zone*& current);
+	static void handleTSIG(const std::vector<std::string>& tokens, Zone* parent);
 	static void handleResourceRecord(const std::vector<std::string>& tokens, Zone* current, std::string& previousName);
 };
 #endif

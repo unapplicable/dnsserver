@@ -49,7 +49,7 @@ inline std::string process_domain_name(const std::string& name, const std::strin
 class RR
 {
 public:
-	enum RRType { RRUNDEF = 0, A = 1, NS, MD, MF, CNAME, SOA, MB, MG, MR,RRNULL,WKS, PTR, HINFO, MINFO, MX, TXT,AAAA = 28, CERT = 37, DHCID = 49, AXFR = 252, MAILB = 253, MAILA = 254, TYPESTAR = 255};
+	enum RRType { RRUNDEF = 0, A = 1, NS, MD, MF, CNAME, SOA, MB, MG, MR,RRNULL,WKS, PTR, HINFO, MINFO, MX, TXT,AAAA = 28, CERT = 37, DHCID = 49, TSIG = 250, AXFR = 252, MAILB = 253, MAILA = 254, TYPESTAR = 255};
 	enum RRClass { CLASSUNDEF = 0, CLASSIN = 1, CS = 2, CH = 3, HS = 4, CLASSNONE = 254, CLASSANY = 255 };
 
 	
@@ -100,7 +100,7 @@ public:
 	{
 		switch (t)
 		{	SC(A); SC(NS); SC(MD); SC(CNAME); SC(SOA); SC(MB); SC(MR); SC2(RRNULL, NULL); SC(WKS);
-			SC(PTR); SC(MINFO); SC(MX); SC(TXT); SC(AAAA); SC(CERT); SC(DHCID); SC(AXFR); SC(MAILB); SC(MAILA); 
+			SC(PTR); SC(MINFO); SC(MX); SC(TXT); SC(AAAA); SC(CERT); SC(DHCID); SC(TSIG); SC(AXFR); SC(MAILB); SC(MAILA); 
 			SC2(TYPESTAR, STAR);
 			default: 
 				std::stringstream ss;
