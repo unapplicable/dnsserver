@@ -73,6 +73,7 @@ void ZoneFileLoader::handleACL(const std::vector<std::string>& tokens, Zone* par
 {
 Zone* acl = new Zone();
 acl->name = parent->name;
+acl->parent = parent;  // Set parent pointer for ACL sub-zone
 // Copy TSIG key from parent to ACL zone
 if (parent->tsig_key) {
 std::cerr << "[" << parent->name << "] Copying TSIG key to ACL zone" << std::endl;

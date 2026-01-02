@@ -55,12 +55,19 @@ bool ZoneFileSaver::saveToFile(Zone* zone, const string& filename)
 	return true;
 }
 
-void ZoneFileSaver::serialize(const Zone* zone, ostream& out)
+void ZoneFileSaver::serialize(const Zone* zone, ostream& out, bool include_header)
 {
-	writeHeader(out, zone);
-	writeDirectives(out, zone);
+	if (include_header)
+	{
+		writeHeader(out, zone);
+		writeDirectives(out, zone, true);  // Include $ORIGIN for main zone
+	}
+	else
+	{
+		writeDirectives(out, zone, false);  // No $ORIGIN for ACL sub-zones
+	}
 	writeRecords(out, zone);
-	writeACL(out, zone);
+	writeACLs(out, zone);
 }
 
 void ZoneFileSaver::writeHeader(ostream& out, const Zone* zone)
@@ -75,10 +82,13 @@ void ZoneFileSaver::writeHeader(ostream& out, const Zone* zone)
 	out << endl;
 }
 
-void ZoneFileSaver::writeDirectives(ostream& out, const Zone* zone)
+void ZoneFileSaver::writeDirectives(ostream& out, const Zone* zone, bool include_origin)
 {
-	// Write $ORIGIN
-	out << "$ORIGIN " << zone->name << endl;
+	// Write $ORIGIN only if requested (not for ACL sub-zones)
+	if (include_origin)
+	{
+		out << "$ORIGIN " << zone->name << endl;
+	}
 	
 	// Write $AUTOSAVE if enabled
 	if (zone->auto_save)
@@ -97,12 +107,24 @@ void ZoneFileSaver::writeDirectives(ostream& out, const Zone* zone)
 	out << endl;
 }
 
-void ZoneFileSaver::writeACL(ostream& out, const Zone* zone)
+void ZoneFileSaver::writeACLs(ostream& out, const Zone* zone)
 {
-	// Write $ACL at the end if present
+	// Write ACL sub-zones with $ACL headers
 	if (zone->acl && zone->acl->size() > 0)
 	{
-		out << endl << "$ACL " << zone->acl->toString() << endl;
+		const vector<Acl::AclEntry>& entries = zone->acl->getEntries();
+		
+		for (vector<Acl::AclEntry>::const_iterator it = entries.begin(); it != entries.end(); ++it)
+		{
+			// Only write ACL entry if it has records
+			if (it->zone && it->zone->getAllRecords().size() > 0)
+			{
+				out << endl << "$ACL " << it->subnet.toString() << endl;
+				
+				// Serialize the ACL sub-zone (without header)
+				serialize(it->zone, out, false);
+			}
+		}
 	}
 }
 

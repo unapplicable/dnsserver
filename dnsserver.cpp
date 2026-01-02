@@ -9,6 +9,7 @@
 #include <ctime>
 #include <cstring>
 #include <pthread.h>
+#include <signal.h>
 #include <openssl/opensslv.h>
 #include "socket.h"
 
@@ -29,6 +30,10 @@ using namespace std;
 
 // Global mutex for zone modifications
 pthread_mutex_t g_zone_mutex = PTHREAD_MUTEX_INITIALIZER; 
+
+// Global flags for signal handlers
+volatile sig_atomic_t g_reload_zones = 0; 
+volatile sig_atomic_t g_shutdown = 0; 
 
 
 
@@ -387,7 +392,128 @@ void daemonize(int uid, int gid)
 #endif
 }
 
-void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port, bool should_daemonize)
+void sighupHandler(int /*signum*/)
+{
+	g_reload_zones = 1;
+}
+
+void sigtermHandler(int /*signum*/)
+{
+	g_shutdown = 1;
+}
+
+void saveModifiedZonesLocked(vector<Zone*>& zones, const char* prefix)
+{
+	for (vector<Zone*>::iterator it = zones.begin(); it != zones.end(); ++it)
+	{
+		Zone* zone = *it;
+		
+		if (zone->auto_save && zone->modified)
+		{
+			cerr << prefix << "Saving zone " << zone->name << "..." << endl;
+			
+			if (ZoneFileSaver::saveToFile(zone, zone->filename))
+			{
+				zone->clearModified();
+				cerr << prefix << "Zone " << zone->name << " saved successfully" << endl;
+			}
+			else
+			{
+				cerr << prefix << "Zone " << zone->name << " save failed!" << endl;
+			}
+		}
+	}
+}
+
+void saveModifiedZones(vector<Zone*>& zones, const char* prefix = "")
+{
+	pthread_mutex_lock(&g_zone_mutex);
+	saveModifiedZonesLocked(zones, prefix);
+	pthread_mutex_unlock(&g_zone_mutex);
+}
+
+void clearExistingZones(vector<Zone*>& zones)
+{
+	for (vector<Zone*>::iterator it = zones.begin(); it != zones.end(); ++it)
+	{
+		delete *it;
+	}
+	zones.clear();
+}
+
+bool loadZoneFile(const string& zonefile_path, vector<Zone*>& zones)
+{
+	vector<string> zonedata;
+	
+	ifstream zonefile;
+	zonefile.open(zonefile_path.c_str());
+	
+	if (!zonefile.good())
+	{
+		cerr << "Error: Cannot open zone file: " << zonefile_path << endl;
+		return false;
+	}
+	
+	do
+	{
+		char line[4096];
+		if (zonefile.getline(line, sizeof(line)))
+		{
+			zonedata.push_back(line);
+		}
+		else
+			break;
+	} while (true);
+	
+	if (!ZoneFileLoader::load(zonedata, zones, zonefile_path))
+	{
+		cerr << "Error loading zones from " << zonefile_path << endl;
+		return false;
+	}
+	
+	return true;
+}
+
+void reloadZonesLocked(vector<Zone*>& zones, vector<string>& zonefiles)
+{
+	cerr << "[SIGHUP] Clearing existing zones..." << endl;
+	clearExistingZones(zones);
+	
+	cerr << "[SIGHUP] Reloading zones from disk..." << endl;
+	for (vector<string>::iterator zf_it = zonefiles.begin(); zf_it != zonefiles.end(); ++zf_it)
+	{
+		if (loadZoneFile(*zf_it, zones))
+		{
+			cerr << "[SIGHUP] Reloaded zone file: " << *zf_it << endl;
+		}
+	}
+	
+	cerr << "[SIGHUP] Zone reload complete. Total zones: " << zones.size() << endl;
+}
+
+void handleReloadRequest(vector<Zone*>& zones, vector<string>& zonefiles)
+{
+	if (!g_reload_zones)
+		return;
+	
+	g_reload_zones = 0;
+	
+	cerr << "[SIGHUP] Received reload signal" << endl;
+	
+	pthread_mutex_lock(&g_zone_mutex);
+	
+	// Save all modified zones before reloading
+	cerr << "[SIGHUP] Saving modified zones..." << endl;
+	saveModifiedZonesLocked(zones, "[SIGHUP] ");
+	
+	// Reload all zones
+	reloadZonesLocked(zones, zonefiles);
+	
+	pthread_mutex_unlock(&g_zone_mutex);
+}
+
+
+void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, int uid, int gid, int port, bool should_daemonize)
 {
 	SOCKET udp_s[100], tcp_s[100];
 	int numSockets = 0;
@@ -488,8 +614,13 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port,
 	if (should_daemonize)
 		daemonize(uid, gid);
 	
-	while (true)
+	// Signal handlers are installed in main()
+	
+	while (!g_shutdown)
 	{
+		// Check for reload request
+		handleReloadRequest(zones, zonefiles);
+		
 		char buf[0xFFFF] = {0};
 		char hostname[NI_MAXHOST] = {0x41};
 		sockaddr_in6 from;
@@ -505,7 +636,12 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port,
 			maxfd = max(maxfd, max(udp_s[i], tcp_s[i]));
 		}
 		
-		if (0 >= select(static_cast<int>(maxfd + 1), &rdfds, NULL, NULL, NULL))
+		// Use timeout on select so we can check reload flag periodically
+		struct timeval tv;
+		tv.tv_sec = 1;
+		tv.tv_usec = 0;
+		
+		if (0 >= select(static_cast<int>(maxfd + 1), &rdfds, NULL, NULL, &tv))
 			continue;
 
 		// Handle UDP
@@ -571,6 +707,11 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port,
 			closesocket_compat(client);
 		}
 	}
+	
+	// Server is shutting down - save all modified zones
+	cerr << "[SHUTDOWN] Saving modified zones before exit..." << endl;
+	saveModifiedZones(zones);
+	cerr << "[SHUTDOWN] Shutdown complete" << endl;
 }
 
 
@@ -632,31 +773,9 @@ int main(int argc, char* argv[])
 	// Load all zone files
 	for (vector<string>::iterator zf_it = zonefiles.begin(); zf_it != zonefiles.end(); ++zf_it)
 	{
-		string zonefile_path = *zf_it;
-		vector<string> zonedata;
-		
-		ifstream zonefile;
-		zonefile.open(zonefile_path.c_str());
-		
-		if (!zonefile.good())
+		if (!loadZoneFile(*zf_it, zones))
 		{
-			cerr << "Error: Cannot open zone file: " << zonefile_path << endl;
-			return 1;
-		}
-		
-		do
-		{
-			char line[4096];
-			if (zonefile.getline(line, sizeof(line)))
-			{
-				zonedata.push_back(line);
-			} else
-				break;
-		} while (true);
-		
-		if (!ZoneFileLoader::load(zonedata, zones, zonefile_path))
-		{
-			cerr << "[-] error loading zones from " << zonefile_path << ", malformed data" << endl;
+			cerr << "[-] error loading zones from " << *zf_it << ", malformed data" << endl;
 			return 1;
 		}
 	}
@@ -686,8 +805,35 @@ int main(int argc, char* argv[])
 		cerr << "Auto-save thread started (checking every 5 minutes)" << endl;
 	}
 
+	// Install signal handlers
+#ifdef LINUX
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = sighupHandler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART;
+	sigaction(SIGHUP, &sa, NULL);
+	
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = sigtermHandler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART;
+	sigaction(SIGTERM, &sa, NULL);
+	sigaction(SIGINT, &sa, NULL);
+	
+	cerr << "Signal handlers installed (SIGHUP=reload, SIGTERM/SIGINT=shutdown)" << endl;
+#else
+	signal(SIGHUP, sighupHandler);
+	signal(SIGTERM, sigtermHandler);
+	signal(SIGINT, sigtermHandler);
+	cerr << "Signal handlers installed" << endl;
+#endif
+
 	// IPs start at arg
-	serverloop(&argv[arg], zones, uid, gid, port, should_daemonize);
+	serverloop(&argv[arg], zones, zonefiles, uid, gid, port, should_daemonize);
+	
+	// Cleanup (saveModifiedZones is already called in serverloop on shutdown)
+	
 	return 0;
 }
 

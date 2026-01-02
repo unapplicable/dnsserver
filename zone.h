@@ -17,6 +17,7 @@ public:
 	bool modified;         // Whether zone has been modified since load
 	Acl* acl;              // Access control list
 	TSIG::Key* tsig_key;   // Optional TSIG key for UPDATE authentication
+	Zone* parent;          // Parent zone (for ACL sub-zones, otherwise NULL)
 	
 	Zone();
 	~Zone();
@@ -33,7 +34,7 @@ public:
 	const std::vector<RR*>& getAllRecords() const { return rrs; }
 	
 	// Update tracking
-	void recordUpdate();  // Increment serial and mark as modified
+	void recordUpdate();  // Increment serial and mark as modified (marks parent if ACL zone)
 	void clearModified() { modified = false; }
 
 private:

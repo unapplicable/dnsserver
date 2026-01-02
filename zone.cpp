@@ -6,7 +6,7 @@
 
 using namespace std;
 
-Zone::Zone() : auto_save(false), modified(false), acl(NULL), tsig_key(NULL)
+Zone::Zone() : auto_save(false), modified(false), acl(NULL), tsig_key(NULL), parent(NULL)
 {
 	acl = new Acl();
 }
@@ -119,4 +119,10 @@ void Zone::recordUpdate()
 {
     incrementSerial();
     modified = true;
+    
+    // If this is an ACL sub-zone, also mark the parent as modified
+    if (parent)
+    {
+        parent->modified = true;
+    }
 }

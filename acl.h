@@ -35,7 +35,7 @@ public:
 	std::string toString() const;
 	void propagateTSIGKey(const struct TSIG::Key* key);
 	
-private:
+	// Expose entries for serialization
 	struct AclEntry
 	{
 		Subnet subnet;
@@ -44,6 +44,9 @@ private:
 		AclEntry(const Subnet& s, Zone* z) : subnet(s), zone(z) {}
 	};
 	
+	const std::vector<AclEntry>& getEntries() const { return entries; }
+	
+private:
 	std::vector<AclEntry> entries;
 };
 
