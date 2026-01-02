@@ -20,6 +20,7 @@ using namespace std;
 #include "rrsoa.h"
 #include "rrtxt.h"
 #include "zoneFileLoader.h"
+#include "zoneFileSaver.h"
 #include "zone_authority.h"
 #include "update_processor.h"
 #include "query_processor.h"
@@ -335,6 +336,44 @@ int setnonblock(SOCKET sockfd, int nonblock)
 #endif
 }
 
+void* zoneSaveThread(void* arg)
+{
+	vector<Zone*>* zones = (vector<Zone*>*)arg;
+	
+	while (true)
+	{
+		// Sleep for 5 minutes
+		sleep(300);
+		
+		// Check all zones for modifications and save if needed
+		pthread_mutex_lock(&g_zone_mutex);
+		
+		for (vector<Zone*>::iterator it = zones->begin(); it != zones->end(); ++it)
+		{
+			Zone* zone = *it;
+			
+			if (zone->auto_save && zone->modified)
+			{
+				cerr << "[AUTOSAVE] Zone " << zone->name << " has been modified, saving..." << endl;
+				
+				if (ZoneFileSaver::saveToFile(zone, zone->filename))
+				{
+					zone->clearModified();  // Reset modified flag after successful save
+					cerr << "[AUTOSAVE] Zone " << zone->name << " saved successfully" << endl;
+				}
+				else
+				{
+					cerr << "[AUTOSAVE] Zone " << zone->name << " save failed!" << endl;
+				}
+			}
+		}
+		
+		pthread_mutex_unlock(&g_zone_mutex);
+	}
+	
+	return NULL;
+}
+
 void daemonize(int uid, int gid)
 {
 #ifdef LINUX
@@ -540,14 +579,14 @@ void serverloop(char **vaddr, vector<Zone *>& zones, int uid, int gid, int port,
 int main(int argc, char* argv[])
 {
 	vector<Zone *> zones;
-	vector<string> zonedata;
+	vector<string> zonefiles;
 
 	cout << "dnsserver version " << VERSION << endl;
 	cout << "OpenSSL version " << OPENSSL_VERSION_TEXT << endl;
 
 	if (argc < 3)
 	{
-		cerr << "Usage: " << argv[0] << " [-p port] [-u uid] [-g gid] [-d] zonefile IP1 [IP2 ...]" << endl;
+		cerr << "Usage: " << argv[0] << " [-p port] [-u uid] [-g gid] [-d] -z zonefile [-z zonefile2 ...] IP1 [IP2 ...]" << endl;
 		return 1;
 	}
 
@@ -572,36 +611,84 @@ int main(int argc, char* argv[])
 			should_daemonize = true;
 			arg += 1;
 		} else
-			break;  // First non-option is zonefile
+		if (argv[arg] == std::string("-z") || argv[arg] == std::string("--zone")) {
+			if (arg + 1 >= argc)
+			{
+				cerr << "Error: -z requires a zone file argument" << endl;
+				return 1;
+			}
+			zonefiles.push_back(argv[arg + 1]);
+			arg += 2;
+		} else
+			break;  // First non-option is IP address
 	}
 
-	// Now arg points to zonefile
+	// Check if we have at least one zone file
+	if (zonefiles.empty())
+	{
+		cerr << "Error: at least one zone file must be specified with -z" << endl;
+		return 1;
+	}
+	
+	// Load all zone files
+	for (vector<string>::iterator zf_it = zonefiles.begin(); zf_it != zonefiles.end(); ++zf_it)
+	{
+		string zonefile_path = *zf_it;
+		vector<string> zonedata;
+		
+		ifstream zonefile;
+		zonefile.open(zonefile_path.c_str());
+		
+		if (!zonefile.good())
+		{
+			cerr << "Error: Cannot open zone file: " << zonefile_path << endl;
+			return 1;
+		}
+		
+		do
+		{
+			char line[4096];
+			if (zonefile.getline(line, sizeof(line)))
+			{
+				zonedata.push_back(line);
+			} else
+				break;
+		} while (true);
+		
+		if (!ZoneFileLoader::load(zonedata, zones, zonefile_path))
+		{
+			cerr << "[-] error loading zones from " << zonefile_path << ", malformed data" << endl;
+			return 1;
+		}
+	}
+	
+	if (zones.empty())
+	{
+		cerr << "Error: No zones loaded" << endl;
+		return 1;
+	}
+	
+	// Check we have IP addresses
 	if (arg >= argc)
 	{
-		cerr << "Error: zonefile not specified" << endl;
+		cerr << "Error: No IP addresses specified" << endl;
 		return 1;
 	}
 
-	ifstream zonefile;
-	zonefile.open(argv[arg]);
-	do
+	// Start background save thread
+	pthread_t save_thread;
+	if (pthread_create(&save_thread, NULL, zoneSaveThread, &zones) != 0)
 	{
-		char line[4096];
-		if (zonefile.getline(line, sizeof(line)))
-		{
-			zonedata.push_back(line);
-		} else
-			break;
-	} while (true);
-	
-	if (!ZoneFileLoader::load(zonedata, zones))
+		cerr << "Warning: Failed to create auto-save thread" << endl;
+	}
+	else
 	{
-		cerr << "[-] error loading zones, malformed data" << endl;
-		return 0;
+		pthread_detach(save_thread);
+		cerr << "Auto-save thread started (checking every 5 minutes)" << endl;
 	}
 
-	// IPs start at arg+1
-	serverloop(&argv[arg+1], zones, uid, gid, port, should_daemonize);
+	// IPs start at arg
+	serverloop(&argv[arg], zones, uid, gid, port, should_daemonize);
 	return 0;
 }
 

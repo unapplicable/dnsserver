@@ -21,3 +21,8 @@ std::ostream& RRTXT::dumpContents(std::ostream& os) const
 {
 	return os << rdata;
 }
+
+std::string RRTXT::toString() const
+{
+	return name + " " + std::to_string(ttl) + " IN TXT " + rdata;
+}

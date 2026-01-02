@@ -6,6 +6,11 @@ std::ostream& RRPTR::dumpContents(std::ostream& os) const
 	return os << rdata;
 }
 
+std::string RRPTR::toString() const
+{
+	return name + " " + std::to_string(ttl) + " IN PTR " + rdata;
+}
+
 void RRPTR::fromStringContents(const std::vector<std::string>& tokens, const std::string& origin)
 {
 	rdata = process_domain_name(tokens[0], origin);

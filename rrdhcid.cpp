@@ -18,15 +18,7 @@ bool RRDHCID::unpack(char* data, unsigned int len, unsigned int& offset, bool is
 
 std::ostream& RRDHCID::dumpContents(std::ostream& os) const
 {
-	os << "dhcid [";
-	for (size_t i = 0; i < identifier.length(); ++i)
-	{
-		os << std::hex << std::setfill('0') << std::setw(2) 
-		   << (static_cast<unsigned int>(static_cast<unsigned char>(identifier[i])));
-		if (i < identifier.length() - 1)
-			os << " ";
-	}
-	os << "]";
+	os << identifier;
 	return os;
 }
 

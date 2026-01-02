@@ -11,6 +11,7 @@ class RRA : public RR
 {
 	public:
 		virtual std::ostream& dumpContents(std::ostream& os) const;
+virtual std::string toString() const;
 		virtual void fromStringContents(const std::vector<std::string>& v, const std::string& origin = "");
 		virtual RR* clone() const { return new RRA(*this); }
 		virtual ~RRA() {};

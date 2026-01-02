@@ -78,3 +78,11 @@ void RRSoa::packContents(char* data, unsigned int len, unsigned int& offset)
 	unsigned int packedrdlen = offset - (oldoffset + 2);
 	(unsigned short&)data[oldoffset] = htons(packedrdlen);	
 }
+
+std::string RRSoa::toString() const
+{
+std::ostringstream ss;
+ss << name << " IN SOA " << ns << " " << mail << " " << serial << " " 
+   << refresh << " " << retry << " " << expire << " " << minttl;
+return ss.str();
+}

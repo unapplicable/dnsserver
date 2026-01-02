@@ -3,59 +3,25 @@
 
 #include <string>
 #include <vector>
-#include "socket.h"
 #include "rr.h"
 #include "tsig.h"
 
-class Zone;
-
-struct Subnet
-{
-	unsigned long ip;
-	unsigned long mask;
-	bool match(unsigned long ip) const
-	{
-		return (ip & mask) == (this->ip & mask);
-	}
-
-	Subnet(std::string str)
-	{
-		long smask;
-		std::string::size_type s;
-		if ((s = str.find('/')) != std::string::npos)
-		{
-			smask = atoi(str.substr(s + 1).c_str());
-			ip = inet_addr(str.substr(0, s).c_str());
-		} else
-		{
-			smask = 32;
-			ip = inet_addr(str.c_str());
-		}
-		mask = 0;
-		for (int i = 31; i >= 32 - smask; --i)
-			mask |= 1 << i;
-
-		mask = htonl(mask);
-	}
-};
-
-struct AclEntry
-{
-	Subnet subnet;
-	Zone* zone;
-};
+class Acl;
 
 class Zone
 {
 public:
 	std::string name;
-	std::vector<AclEntry> acl;
-	TSIG::Key* tsig_key;  // Optional TSIG key for UPDATE authentication
+	std::string filename;  // Source file for this zone
+	bool auto_save;        // Whether to persist changes back to disk
+	bool modified;         // Whether zone has been modified since load
+	Acl* acl;              // Access control list
+	TSIG::Key* tsig_key;   // Optional TSIG key for UPDATE authentication
 	
-	Zone() : tsig_key(NULL) {}
-	~Zone() { delete tsig_key; }
+	Zone();
+	~Zone();
 	
-	// Record operations (merged from ZoneDatabase)
+	// Record operations
 	std::vector<RR*> findRecordsByName(const std::string& name, 
 	                                   RR::RRType type = RR::RRUNDEF) const;
 	bool hasRecordWithName(const std::string& name) const;
@@ -66,11 +32,15 @@ public:
 	                  const std::string& rdata = "");
 	const std::vector<RR*>& getAllRecords() const { return rrs; }
 	
-	// SOA serial management
-	bool incrementSerial();
+	// Update tracking
+	void recordUpdate();  // Increment serial and mark as modified
+	void clearModified() { modified = false; }
 
 private:
 	std::vector<RR *> rrs;
+	
+	// SOA serial management (internal)
+	bool incrementSerial();
 };
 
 typedef std::vector<Zone*> t_zones;

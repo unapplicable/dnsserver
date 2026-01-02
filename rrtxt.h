@@ -12,6 +12,7 @@ class RRTXT : public RR
 	public:
 		virtual void packContents(char* data, unsigned int len, unsigned int& offset);
 		virtual std::ostream& dumpContents(std::ostream& os) const;
+virtual std::string toString() const;
 		virtual void fromStringContents(const std::vector<std::string>& v, const std::string& origin = "");
 		virtual RR* clone() const { return new RRTXT(*this); }
 		virtual ~RRTXT() {};

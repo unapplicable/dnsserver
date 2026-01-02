@@ -1,0 +1,7 @@
+$ORIGIN autosave.test.
+$ACL 0.0.0.0/0
+$AUTOSAVE yes
+$TSIG testkey.autosave.test. hmac-sha256 K2tf3TRrmE7TJd+m2NPBuw==
+autosave.test. IN SOA ns1.autosave.test. admin.autosave.test. 2026010201 3600 1800 604800 86400
+autosave.test. IN NS ns1.autosave.test.
+ns1.autosave.test. IN A 127.0.0.1

@@ -1,9 +1,21 @@
 #include "zone.h"
+#include "acl.h"
 #include "rr.h"
 #include "rrsoa.h"
 #include <algorithm>
 
 using namespace std;
+
+Zone::Zone() : auto_save(false), modified(false), acl(NULL), tsig_key(NULL)
+{
+	acl = new Acl();
+}
+
+Zone::~Zone()
+{
+	delete acl;
+	delete tsig_key;
+}
 
 vector<RR*> Zone::findRecordsByName(const string& name, RR::RRType type) const
 {
@@ -101,4 +113,10 @@ bool Zone::incrementSerial()
     }
     
     return false;
+}
+
+void Zone::recordUpdate()
+{
+    incrementSerial();
+    modified = true;
 }

@@ -14,6 +14,7 @@
 #include "rrtsig.h"
 
 #include <cstring>
+#include <cctype>
 #include <exception>
 
 static char *hextab = (char*)"0123456789ABCDEF";
@@ -201,20 +202,48 @@ void RR::fromString(const std::vector<std::string>& tokens, const std::string& o
 	
 	name = process_domain_name(rawName, origin);
 
-	if (tokens[1] == "IN")
+	// Parse: name [ttl] class type rdata...
+	// ttl is optional and numeric
+	size_t idx = 1;
+	ttl = 0; // default TTL
+	
+	// Check if next token is a number (TTL)
+	if (idx < tokens.size() && !tokens[idx].empty() && isdigit(tokens[idx][0]))
+	{
+		ttl = std::stoul(tokens[idx]);
+		idx++;
+	}
+	
+	// Parse class
+	if (idx >= tokens.size())
+	{
+		rrclass = CLASSUNDEF;
+		type = RRUNDEF;
+		return;
+	}
+	
+	if (tokens[idx] == "IN")
 		rrclass = CLASSIN;
-	else
-	if (tokens[1] == "CH")
+	else if (tokens[idx] == "CH")
 		rrclass = CH;
-	else
-	if (tokens[1] == "*" || tokens[1] == "ANY")
+	else if (tokens[idx] == "*" || tokens[idx] == "ANY")
 		rrclass = CLASSANY;
 	else
 		rrclass = CLASSUNDEF;
-
-	type = RRTypeFromString(tokens[2]);
-
-	fromStringContents(std::vector<std::string>(tokens.begin() + 3, tokens.end()), origin);
+	idx++;
+	
+	// Parse type
+	if (idx >= tokens.size())
+	{
+		type = RRUNDEF;
+		return;
+	}
+	
+	type = RRTypeFromString(tokens[idx]);
+	idx++;
+	
+	// Parse rdata
+	fromStringContents(std::vector<std::string>(tokens.begin() + idx, tokens.end()), origin);
 }
 
 void RR::fromStringContents(const std::vector<std::string>& /* tokens */, const std::string& /* origin */)
@@ -302,4 +331,24 @@ bool RR::unpack(char *data, unsigned int len, unsigned int& offset, bool isQuery
 	
 	offset += rdlen;
 	return true;
+}
+
+std::string RR::toString() const
+{
+	std::ostringstream ss;
+	ss << name << " " << ttl << " ";
+	
+	// Output class
+	if (rrclass == CLASSIN)
+		ss << "IN";
+	else if (rrclass == CH)
+		ss << "CH";
+	else if (rrclass == CLASSANY)
+		ss << "ANY";
+	else
+		ss << "UNKNOWN";
+	
+	ss << " " << RRTypeToString(type) << " ";
+	dumpContents(ss);
+	return ss.str();
 }

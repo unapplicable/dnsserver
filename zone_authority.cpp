@@ -1,6 +1,7 @@
 #include "zone_authority.h"
 #include "rr.h"
 #include "rrsoa.h"
+#include "acl.h"
 #include <iostream>
 
 using namespace std;
@@ -46,16 +47,14 @@ ZoneLookupResult ZoneAuthority::findZoneForName(const string& zone_name,
             result.found = true;
             
             // Check ACL if present
-            if (z->acl.size())
+            if (z->acl && z->acl->size() > 0)
             {
-                for (vector<AclEntry>::const_iterator i = z->acl.begin(); i != z->acl.end(); ++i)
+                Zone* acl_zone = NULL;
+                if (z->acl->checkAccess(client_addr, &acl_zone))
                 {
-                    if (i->subnet.match(client_addr))
-                    {
-                        result.authorized = true;
-                        result.zone = i->zone ? i->zone : z;
-                        return result;
-                    }
+                    result.authorized = true;
+                    result.zone = acl_zone ? acl_zone : z;
+                    return result;
                 }
                 
                 result.authorized = false;

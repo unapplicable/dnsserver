@@ -62,6 +62,8 @@ bool UpdateProcessor::applyUpdates(const Message* request,
                                   Zone& zone,
                                   string& /* error_message */)
 {
+    bool zone_modified = false;
+    
     for (vector<RR*>::const_iterator iter = request->ns.begin(); iter != request->ns.end(); ++iter)
     {
         RR *update = *iter;
@@ -70,23 +72,31 @@ bool UpdateProcessor::applyUpdates(const Message* request,
         {
             // Delete all RRsets or specific RRset
             RR::RRType type_to_delete = (update->type == RR::TYPESTAR) ? RR::RRUNDEF : update->type;
-            zone.removeRecords(update->name, type_to_delete);
+            int removed = zone.removeRecords(update->name, type_to_delete);
+            if (removed > 0)
+                zone_modified = true;
         }
         else if (update->rrclass == RR::CLASSNONE)
         {
             // Delete specific RR (matching rdata)
-            zone.removeRecords(update->name, update->type, update->rdata);
+            int removed = zone.removeRecords(update->name, update->type, update->rdata);
+            if (removed > 0)
+                zone_modified = true;
         }
         else if (update->rrclass == RR::CLASSIN)
         {
             // Add RR
             RR *new_rr = update->clone();
             zone.addRecord(new_rr);
+            zone_modified = true;
         }
     }
     
-    // Increment SOA serial after successful update
-    zone.incrementSerial();
+    // If zone was modified, record the update (increment serial + mark modified)
+    if (zone_modified)
+    {
+        zone.recordUpdate();
+    }
     
     return true;
 }

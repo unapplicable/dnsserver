@@ -1,6 +1,7 @@
 #include "zoneFileLoader.h"
 
 #include "zone.h"
+#include "acl.h"
 #include "rr.h"
 #include "tsig.h"
 #include <iostream>
@@ -8,7 +9,10 @@
 std::string ZoneFileLoader::stripComments(const std::string& line)
 {
 	std::string result = line;
-	std::string::size_type cmtpos = result.find('!');
+	// Strip both ! and ; style comments
+	std::string::size_type cmtpos = result.find(';');
+	if (cmtpos == std::string::npos)
+		cmtpos = result.find('!');
 	if (cmtpos != std::string::npos)
 		result.erase(cmtpos);
 	return result;
@@ -44,21 +48,41 @@ void ZoneFileLoader::handleOrigin(const std::vector<std::string>& tokens, Zone*&
 	previousName.clear();
 }
 
+void ZoneFileLoader::handleAutoSave(const std::vector<std::string>& tokens, Zone* parent)
+{
+	if (!parent)
+	{
+		std::cerr << "Warning: $AUTOSAVE must come after $ORIGIN" << std::endl;
+		return;
+	}
+	
+	// $AUTOSAVE [yes|no] (default: yes if present)
+	if (tokens.size() < 2 || tokens[1] == "yes" || tokens[1] == "YES" || tokens[1] == "1")
+	{
+		parent->auto_save = true;
+		std::cerr << "[" << parent->name << "] Auto-save enabled" << std::endl;
+	}
+	else
+	{
+		parent->auto_save = false;
+		std::cerr << "[" << parent->name << "] Auto-save disabled" << std::endl;
+	}
+}
+
 void ZoneFileLoader::handleACL(const std::vector<std::string>& tokens, Zone* parent, Zone*& current)
 {
-	Zone* acl = new Zone();
-	acl->name = parent->name;
-	// Copy TSIG key from parent to ACL zone
-	if (parent->tsig_key) {
-		std::cerr << "[" << parent->name << "] Copying TSIG key to ACL zone" << std::endl;
-		acl->tsig_key = new TSIG::Key(*parent->tsig_key);
-	}
-	for (std::string::size_type i = 1; i < tokens.size(); ++i)
-	{
-		AclEntry e = {Subnet(tokens[i]), acl};
-		parent->acl.push_back(e);
-	}
-	current = acl;
+Zone* acl = new Zone();
+acl->name = parent->name;
+// Copy TSIG key from parent to ACL zone
+if (parent->tsig_key) {
+std::cerr << "[" << parent->name << "] Copying TSIG key to ACL zone" << std::endl;
+acl->tsig_key = new TSIG::Key(*parent->tsig_key);
+}
+for (std::string::size_type i = 1; i < tokens.size(); ++i)
+{
+parent->acl->addSubnet(tokens[i], acl);
+}
+current = acl;
 }
 
 void ZoneFileLoader::handleTSIG(const std::vector<std::string>& tokens, Zone* parent)
@@ -96,7 +120,25 @@ void ZoneFileLoader::handleTSIG(const std::vector<std::string>& tokens, Zone* pa
 
 void ZoneFileLoader::handleResourceRecord(const std::vector<std::string>& tokens, Zone* current, std::string& previousName)
 {
-	RR::RRType rrtype = RR::RRTypeFromString(tokens[2]);
+	// RR::fromString handles all parsing including TTL
+	// We need to first parse to find the type, then create the appropriate RR
+	
+	// Parse: name [ttl] class type rdata...
+	size_t idx = 1;
+	
+	// Skip TTL if present (numeric)
+	if (idx < tokens.size() && !tokens[idx].empty() && isdigit(tokens[idx][0]))
+		idx++;
+	
+	// Skip class
+	if (idx < tokens.size())
+		idx++;
+	
+	// Get type
+	if (idx >= tokens.size())
+		return;
+	
+	RR::RRType rrtype = RR::RRTypeFromString(tokens[idx]);
 	RR* rr = RR::createByType(rrtype);
 	
 	// Get origin without trailing dot for fromString processing
@@ -111,7 +153,7 @@ void ZoneFileLoader::handleResourceRecord(const std::vector<std::string>& tokens
 	current->addRecord(rr);
 }
 
-bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
+bool ZoneFileLoader::load(const t_data& data, t_zones& zones, const std::string& filename)
 {
 	Zone* z = NULL;
 	Zone* parent = NULL;
@@ -122,26 +164,44 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 		std::string line = stripComments(*di);
 		std::vector<std::string> tokens = tokenize(line);
 
-		if (tokens.size() < 2)
+		if (tokens.size() == 0)
 			continue;
 
 		if (tokens[0] == "$ORIGIN")
 		{
+			if (tokens.size() < 2)
+				continue;
 			handleOrigin(tokens, parent, z, zones, previousName);
 			continue;
 		}
 		
 		if (tokens[0] == "$ACL")
 		{
+			if (tokens.size() < 2)
+				continue;
 			handleACL(tokens, parent, z);
+			continue;
+		}
+		
+		if (tokens[0] == "$AUTOSAVE")
+		{
+			handleAutoSave(tokens, parent);
 			continue;
 		}
 		
 		if (tokens[0] == "$TSIG")
 		{
+			if (tokens.size() < 4)
+			{
+				std::cerr << "Warning: Invalid $TSIG directive (needs: keyname algorithm secret)" << std::endl;
+				continue;
+			}
 			handleTSIG(tokens, parent);
 			continue;
 		}
+		
+		if (tokens.size() < 2)
+			continue;
 
 		try
 		{
@@ -162,19 +222,18 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones)
 
 	if (parent != NULL)
 	{
-		// Copy TSIG key from parent to all ACL zones before finalizing
-		if (parent->tsig_key)
+		// Set filename for the zone
+		if (!filename.empty())
 		{
-			for (std::vector<AclEntry>::iterator it = parent->acl.begin(); 
-			     it != parent->acl.end(); ++it)
-			{
-				if (it->zone && !it->zone->tsig_key)
-				{
-					std::cerr << "[" << parent->name << "] Copying TSIG key to ACL zone" << std::endl;
-					it->zone->tsig_key = new TSIG::Key(*parent->tsig_key);
-				}
-			}
+			parent->filename = filename;
 		}
+		
+		// Copy TSIG key to ACL zones (if any)
+		if (parent->tsig_key && parent->acl)
+		{
+			parent->acl->propagateTSIGKey(parent->tsig_key);
+		}
+		
 		zones.push_back(parent);
 	}
 

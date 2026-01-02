@@ -66,6 +66,7 @@ public:
 	void pack(char *data, unsigned int len, unsigned int& offset);
 	virtual void packContents(char* data, unsigned int len, unsigned int& offset);
 	virtual std::ostream& dumpContents(std::ostream& os) const;
+	virtual std::string toString() const;  // Serialize full record: name + type + rdata
 	virtual void fromString(const std::vector<std::string>& v, const std::string& origin = "", const std::string& previousName = "");
 	virtual void fromStringContents(const std::vector<std::string>& v, const std::string& origin = "");
 	virtual RR* clone() const { return new RR(*this); }

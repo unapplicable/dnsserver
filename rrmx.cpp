@@ -6,6 +6,11 @@ std::ostream& RRMX::dumpContents(std::ostream& os) const
 	return os << std::dec << pref << " " << rdata;
 };
 
+std::string RRMX::toString() const
+{
+	return name + " " + std::to_string(ttl) + " IN MX " + std::to_string(pref) + " " + rdata;
+}
+
 void RRMX::fromStringContents(const std::vector<std::string>& tokens, const std::string& origin)
 {
 	pref = atoi(tokens[0].c_str());

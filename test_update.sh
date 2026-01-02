@@ -80,7 +80,7 @@ EOF
 start_server() {
     log "Starting DNS server on $SERVER:$PORT"
     create_test_zone
-    ./bin/dnsserver -p $PORT test_update.zone $SERVER > server.log 2>&1 &
+    ./bin/dnsserver -p $PORT -z test_update.zone $SERVER > server.log 2>&1 &
     SERVER_PID=$!
     sleep 2
     

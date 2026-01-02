@@ -14,7 +14,7 @@ echo ""
 
 # Start server
 echo "Starting DNS server..."
-./bin/dnsserver -p $PORT $ZONE_FILE $SERVER > /tmp/wildcard_test.log 2>&1 &
+./bin/dnsserver -p $PORT -z $ZONE_FILE $SERVER > /tmp/wildcard_test.log 2>&1 &
 SERVER_PID=$!
 sleep 2
 

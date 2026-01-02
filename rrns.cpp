@@ -11,6 +11,11 @@ std::ostream& RRNS::dumpContents(std::ostream& os) const
 	return os << rdata;
 }
 
+std::string RRNS::toString() const
+{
+	return name + " " + std::to_string(ttl) + " IN NS " + rdata;
+}
+
 bool RRNS::unpack(char* data, unsigned int len, unsigned int& offset, bool isQuery)
 {
 	if (!RR::unpack(data, len, offset, isQuery))
