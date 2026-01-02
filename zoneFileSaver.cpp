@@ -11,7 +11,7 @@
 
 using namespace std;
 
-bool ZoneFileSaver::saveToFile(const Zone* zone, const string& filename)
+bool ZoneFileSaver::saveToFile(Zone* zone, const string& filename)
 {
 	if (filename.empty())
 	{
@@ -47,6 +47,9 @@ bool ZoneFileSaver::saveToFile(const Zone* zone, const string& filename)
 		rename(backup_name.c_str(), filename.c_str());
 		return false;
 	}
+	
+	// Clear modified flag after successful save
+	zone->clearModified();
 	
 	cerr << "Zone " << zone->name << ": Successfully saved to " << filename << endl;
 	return true;

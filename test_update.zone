@@ -1,0 +1,5 @@
+$ORIGIN test.example.com
+$ACL 0.0.0.0/0
+test.example.com. IN SOA ns1.test.example.com. admin.test.example.com. 2025123101 3600 1800 604800 86400
+test.example.com. IN NS ns1.test.example.com.
+ns1.test.example.com. IN A 127.0.0.1

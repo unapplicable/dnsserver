@@ -186,6 +186,159 @@ void test_different_hmac_algorithms() {
     cout << "  PASSED" << endl;
 }
 
+void test_tsig_invalid_mac() {
+    cout << "Testing TSIG verification with invalid MAC..." << endl;
+    
+    // Create a message with invalid TSIG
+    Message msg;
+    RRTSIG* tsig = new RRTSIG();
+    tsig->name = "testkey.example.com.";
+    tsig->type = RR::TSIG;
+    tsig->rrclass = RR::CLASSANY;
+    tsig->ttl = 0;
+    tsig->algorithm = "hmac-sha256.";
+    tsig->setTimeSigned(time(NULL));
+    tsig->fudge = 300;
+    tsig->mac = "invalid_mac_signature";
+    tsig->mac_size = tsig->mac.length();
+    tsig->original_id = 12345;
+    tsig->error = 0;
+    tsig->other_len = 0;
+    msg.ar.push_back(tsig);
+    
+    // Create raw message buffer
+    char raw_buffer[512];
+    memset(raw_buffer, 0, sizeof(raw_buffer));
+    unsigned int raw_len = 12; // DNS header size
+    
+    // Create a key
+    TSIG::Key key;
+    key.name = "testkey.example.com.";
+    key.algorithm = TSIG::HMAC_SHA256;
+    key.secret = "K2tf3TRrmE7TJd+m2NPBuw==";
+    key.decoded_secret = TSIG::base64Decode(key.secret);
+    
+    string error;
+    bool result = TSIG::verify(&msg, raw_buffer, raw_len, &key, error);
+    
+    assert(result == false);
+    assert(error == "TSIG signature verification failed");
+    
+    cout << "  Error message: " << error << endl;
+    cout << "  PASSED" << endl;
+}
+
+void test_tsig_algorithm_mismatch() {
+    cout << "Testing TSIG verification with algorithm mismatch..." << endl;
+    
+    Message msg;
+    RRTSIG* tsig = new RRTSIG();
+    tsig->name = "testkey.example.com.";
+    tsig->type = RR::TSIG;
+    tsig->rrclass = RR::CLASSANY;
+    tsig->ttl = 0;
+    tsig->algorithm = "hmac-md5.sig-alg.reg.int.";  // Different algorithm
+    tsig->setTimeSigned(time(NULL));
+    tsig->fudge = 300;
+    tsig->mac = "some_mac";
+    tsig->mac_size = tsig->mac.length();
+    tsig->original_id = 12345;
+    tsig->error = 0;
+    tsig->other_len = 0;
+    msg.ar.push_back(tsig);
+    
+    char raw_buffer[512] = {0};
+    
+    TSIG::Key key;
+    key.name = "testkey.example.com.";
+    key.algorithm = TSIG::HMAC_SHA256;  // Different from message
+    key.secret = "K2tf3TRrmE7TJd+m2NPBuw==";
+    key.decoded_secret = TSIG::base64Decode(key.secret);
+    
+    string error;
+    bool result = TSIG::verify(&msg, raw_buffer, 12, &key, error);
+    
+    assert(result == false);
+    assert(error == "TSIG algorithm mismatch");
+    
+    cout << "  Error message: " << error << endl;
+    cout << "  PASSED" << endl;
+}
+
+void test_tsig_time_check() {
+    cout << "Testing TSIG time check..." << endl;
+    
+    Message msg;
+    RRTSIG* tsig = new RRTSIG();
+    tsig->name = "testkey.example.com.";
+    tsig->type = RR::TSIG;
+    tsig->rrclass = RR::CLASSANY;
+    tsig->ttl = 0;
+    tsig->algorithm = "hmac-sha256.";
+    tsig->setTimeSigned(time(NULL) - 1000);  // 1000 seconds in the past
+    tsig->fudge = 300;  // Only 300 seconds allowed
+    tsig->mac = "some_mac";
+    tsig->mac_size = tsig->mac.length();
+    tsig->original_id = 12345;
+    tsig->error = 0;
+    tsig->other_len = 0;
+    msg.ar.push_back(tsig);
+    
+    char raw_buffer[512] = {0};
+    
+    TSIG::Key key;
+    key.name = "testkey.example.com.";
+    key.algorithm = TSIG::HMAC_SHA256;
+    key.secret = "K2tf3TRrmE7TJd+m2NPBuw==";
+    key.decoded_secret = TSIG::base64Decode(key.secret);
+    
+    string error;
+    bool result = TSIG::verify(&msg, raw_buffer, 12, &key, error);
+    
+    assert(result == false);
+    assert(error == "TSIG time check failed");
+    
+    cout << "  Error message: " << error << endl;
+    cout << "  PASSED" << endl;
+}
+
+void test_tsig_key_name_mismatch() {
+    cout << "Testing TSIG verification with key name mismatch..." << endl;
+    
+    Message msg;
+    RRTSIG* tsig = new RRTSIG();
+    tsig->name = "wrongkey.example.com.";  // Different key name
+    tsig->type = RR::TSIG;
+    tsig->rrclass = RR::CLASSANY;
+    tsig->ttl = 0;
+    tsig->algorithm = "hmac-sha256.";
+    tsig->setTimeSigned(time(NULL));
+    tsig->fudge = 300;
+    tsig->mac = "some_mac";
+    tsig->mac_size = tsig->mac.length();
+    tsig->original_id = 12345;
+    tsig->error = 0;
+    tsig->other_len = 0;
+    msg.ar.push_back(tsig);
+    
+    char raw_buffer[512] = {0};
+    
+    TSIG::Key key;
+    key.name = "testkey.example.com.";  // Different from message
+    key.algorithm = TSIG::HMAC_SHA256;
+    key.secret = "K2tf3TRrmE7TJd+m2NPBuw==";
+    key.decoded_secret = TSIG::base64Decode(key.secret);
+    
+    string error;
+    bool result = TSIG::verify(&msg, raw_buffer, 12, &key, error);
+    
+    assert(result == false);
+    assert(error == "TSIG key name mismatch");
+    
+    cout << "  Error message: " << error << endl;
+    cout << "  PASSED" << endl;
+}
+
 int main() {
     cout << "Running TSIG unit tests..." << endl << endl;
     
@@ -198,6 +351,10 @@ int main() {
         test_tsig_verification_no_key();
         test_tsig_verification_key_required();
         test_different_hmac_algorithms();
+        test_tsig_invalid_mac();
+        test_tsig_algorithm_mismatch();
+        test_tsig_time_check();
+        test_tsig_key_name_mismatch();
         
         cout << endl << "All TSIG tests PASSED!" << endl;
         return 0;

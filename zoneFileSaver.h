@@ -10,7 +10,7 @@ class ZoneFileSaver
 {
 public:
 	// Save zone to file (atomic with backup)
-	static bool saveToFile(const Zone* zone, const std::string& filename);
+	static bool saveToFile(Zone* zone, const std::string& filename);
 	
 	// Serialize zone to stream
 	static void serialize(const Zone* zone, std::ostream& out);

@@ -1,12 +1,14 @@
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch_all.hpp>
 #include <cstring>
+#include <unistd.h>
 #include <arpa/inet.h>
 #include "message.h"
 #include "rr.h"
 #include "rrdhcid.h"
 #include "rra.h"
 #include "zoneFileLoader.h"
+#include "zoneFileSaver.h"
 #include "zone.h"
 #include "zone_authority.h"
 #include "update_processor.h"
@@ -1658,4 +1660,150 @@ TEST_CASE("Architecture: Complete UPDATE flow through components", "[architectur
     
     // 6. Verify with Zone
     CHECK(zone->hasRecordWithName(dns_name_tolower("new.flow.test.")));
+}
+
+TEST_CASE("Zone modification tracking", "[zone][autosave]")
+{
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN modify.test.");
+    zoneData.push_back("$AUTOSAVE yes");
+    zoneData.push_back("modify.test. IN SOA ns1 admin 100 3600 1800 604800 86400");
+    zoneData.push_back("old IN A 1.2.3.4");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    Zone* zone = zones[0];
+    
+    // Verify auto_save is enabled
+    CHECK(zone->auto_save);
+    
+    // Initially not modified
+    CHECK_FALSE(zone->modified);
+    
+    // Record update should mark as modified
+    zone->recordUpdate();
+    CHECK(zone->modified);
+    
+    // Reset and test again
+    zone->clearModified();
+    CHECK_FALSE(zone->modified);
+    
+    // Add a record and mark modified
+    RR* new_record = RR::createByType(RR::A);
+    new_record->name = dns_name_tolower("new.modify.test.");
+    new_record->rrclass = RR::CLASSIN;
+    new_record->type = RR::A;
+    new_record->ttl = 3600;
+    zone->addRecord(new_record);
+    zone->recordUpdate();
+    zone->recordUpdate();
+    
+    CHECK(zone->modified);
+}
+
+// Mutation Test: Zone modified flag is reset after save
+TEST_CASE("Zone modified flag reset after save", "[zone][persistence]")
+{
+    Zone zone;
+    zone.name = "test.zone.";
+    zone.filename = "test_temp_zone.txt";
+    zone.auto_save = true;
+    
+    // Add SOA so recordUpdate() can work
+    std::vector<std::string> zone_data;
+    zone_data.push_back("$ORIGIN test.zone.");
+    zone_data.push_back("test.zone. IN SOA ns.test.zone. admin.test.zone. 1 3600 1800 604800 86400");
+    std::vector<Zone*> zones;
+    ZoneFileLoader::load(zone_data, zones, "test.zone");
+    Zone* zone_ptr = zones[0];
+    zone_ptr->filename = "test_temp_zone.txt";
+    zone_ptr->auto_save = true;
+    
+    // Add a record to modify the zone
+    RRA* rr = new RRA();
+    rr->name = "host.test.zone.";
+    rr->type = RR::A;
+    rr->rrclass = RR::CLASSIN;
+    rr->ttl = 300;
+    unsigned long addr = inet_addr("192.0.2.1");
+    rr->rdata.append(reinterpret_cast<char*>(&addr), 4);
+    
+    zone_ptr->addRecord(rr);
+    zone_ptr->recordUpdate();  // SUT: This marks zone as modified
+    
+    CHECK(zone_ptr->modified == true);
+    
+    // SUT: saveToFile should clear the modified flag on successful save
+    bool saved = ZoneFileSaver::saveToFile(zone_ptr, zone_ptr->filename);
+    CHECK(saved == true);
+    CHECK(zone_ptr->modified == false);
+    
+    // Cleanup
+    delete zone_ptr;
+    unlink("test_temp_zone.txt");
+    unlink("test_temp_zone.txt.bak");
+}
+
+// Mutation Test: Response query flag must be correct
+TEST_CASE("DNS response query flag must be false", "[query][flags]")
+{
+    Zone zone;
+    zone.name = "example.com.";
+    
+    RRA* rr = new RRA();
+    rr->name = "test.example.com.";
+    rr->type = RR::A;
+    rr->rrclass = RR::CLASSIN;
+    rr->ttl = 300;
+    unsigned long addr = inet_addr("192.0.2.1");
+    rr->rdata.append(reinterpret_cast<char*>(&addr), 4);
+    zone.addRecord(rr);
+    
+    // Create query message
+    Message query;
+    query.id = 1234;
+    query.query = true;  // This is a query
+    query.opcode = Message::QUERY;
+    query.recursiondesired = true;
+    
+    RR* query_rr = new RR();
+    query_rr->name = "test.example.com.";
+    query_rr->type = RR::A;
+    query_rr->rrclass = RR::CLASSIN;
+    query.qd.push_back(query_rr);
+    
+    // SUT: Pack the query message to wire format
+    char query_buffer[512];
+    unsigned int query_offset = 0;
+    query.pack(query_buffer, 512, query_offset);
+    
+    // SUT: Unpack it as would happen on server side
+    Message received_query;
+    unsigned int unpack_offset = 0;
+    received_query.unpack(query_buffer, query_offset, unpack_offset);
+    CHECK(received_query.query == true);  // Should be recognized as query
+    
+    // SUT: Build response using Message::pack with query=false
+    Message response;
+    response.query = false;  // Response must have query=false
+    response.id = received_query.id;
+    response.opcode = received_query.opcode;
+    response.authoritative = true;
+    response.recursiondesired = received_query.recursiondesired;
+    response.recursionavailable = false;
+    response.rcode = Message::CODENOERROR;
+    
+    // Pack and unpack response to verify wire format
+    char response_buffer[512];
+    unsigned int response_offset = 0;
+    response.pack(response_buffer, 512, response_offset);
+    
+    Message received_response;
+    unsigned int response_unpack_offset = 0;
+    received_response.unpack(response_buffer, response_offset, response_unpack_offset);
+    
+    // Response MUST have query flag set to false after round-trip
+    CHECK(received_response.query == false);
+    CHECK(received_response.id == query.id);
 }
