@@ -15,12 +15,10 @@ echo ""
 # Start server
 echo "Starting DNS server..."
 ./bin/dnsserver -p $PORT $ZONE_FILE $SERVER > /tmp/wildcard_test.log 2>&1 &
+SERVER_PID=$!
 sleep 2
 
-# Find server PID
-SERVER_PID=$(ps aux | grep "[d]nsserver -p $PORT" | awk '{print $2}')
-
-if [ -z "$SERVER_PID" ]; then
+if ! ps -p $SERVER_PID > /dev/null 2>&1; then
     echo "ERROR: Failed to start DNS server"
     cat /tmp/wildcard_test.log
     exit 1
@@ -30,7 +28,7 @@ echo "Server started (PID: $SERVER_PID)"
 echo ""
 
 # Cleanup on exit
-trap "kill $SERVER_PID 2>/dev/null || true" EXIT
+trap "kill $SERVER_PID 2>/dev/null || true; wait $SERVER_PID 2>/dev/null || true" EXIT
 
 # Run tests
 PASSED=0

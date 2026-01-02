@@ -81,14 +81,11 @@ start_server() {
     log "Starting DNS server on $SERVER:$PORT"
     create_test_zone
     ./bin/dnsserver -p $PORT test_update.zone $SERVER > server.log 2>&1 &
-    local starter_pid=$!
-    wait $starter_pid 2>/dev/null  # Wait for parent to exit after fork
-    sleep 1
+    SERVER_PID=$!
+    sleep 2
     
-    # Find the actual server process (the forked child)
-    SERVER_PID=$(ps aux | grep "[d]nsserver -p $PORT" | awk '{print $2}')
-    
-    if [ -z "$SERVER_PID" ]; then
+    # Check if server is still running
+    if ! ps -p $SERVER_PID > /dev/null 2>&1; then
         echo "Error: Failed to start DNS server"
         cat server.log
         exit 1
