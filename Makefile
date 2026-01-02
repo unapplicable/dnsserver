@@ -47,6 +47,12 @@ TEST_TSIG_SOURCES = test_tsig.cpp tsig.cpp rrtsig.cpp rr.cpp acl.cpp \
                     rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp \
                     update_processor.cpp query_processor.cpp
 
+TEST_ACL_SOURCES = test_acl.cpp acl.cpp zone.cpp zoneFileLoader.cpp zoneFileSaver.cpp \
+                   rr.cpp tsig.cpp rrtsig.cpp message.cpp zone_authority.cpp \
+                   rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
+                   rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp \
+                   update_processor.cpp query_processor.cpp
+
 TEST_RR_ROUNDTRIP_SOURCES = test_rr_roundtrip.cpp message.cpp rr.cpp acl.cpp zoneFileLoader.cpp \
                             zoneFileSaver.cpp zone.cpp zone_authority.cpp \
                             rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
@@ -59,14 +65,26 @@ TEST_ZONE_ROUNDTRIP_SOURCES = test_zone_roundtrip.cpp message.cpp rr.cpp acl.cpp
                               rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rrtsig.cpp \
                               tsig.cpp update_processor.cpp query_processor.cpp
 
+TEST_TSIG_HMAC_SOURCES = test_tsig_hmac.cpp tsig.cpp rrtsig.cpp rr.cpp message.cpp \
+                        rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
+                        rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
+
+TEST_ZONE_MATCHING_SOURCES = test_zone_matching.cpp zone.cpp zoneFileLoader.cpp zoneFileSaver.cpp \
+                             rr.cpp acl.cpp tsig.cpp rrtsig.cpp message.cpp \
+                             rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
+                             rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
+
 # Object files
 SERVER_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SERVER_SOURCES))
 TEST_UPDATE_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_%.o,$(TEST_UPDATE_SOURCES))
 TEST_QUERY_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_qp_%.o,$(TEST_QUERY_SOURCES))
 TEST_RR_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_rr_%.o,$(TEST_RR_SOURCES))
 TEST_TSIG_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_tsig_%.o,$(TEST_TSIG_SOURCES))
+TEST_ACL_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_acl_%.o,$(TEST_ACL_SOURCES))
 TEST_RR_ROUNDTRIP_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_rr_rt_%.o,$(TEST_RR_ROUNDTRIP_SOURCES))
 TEST_ZONE_ROUNDTRIP_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_zone_rt_%.o,$(TEST_ZONE_ROUNDTRIP_SOURCES))
+TEST_TSIG_HMAC_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_tsig_hmac_%.o,$(TEST_TSIG_HMAC_SOURCES))
+TEST_ZONE_MATCHING_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_zone_match_%.o,$(TEST_ZONE_MATCHING_SOURCES))
 
 # Executables
 SERVER_BIN = $(BIN_DIR)/dnsserver
@@ -74,8 +92,11 @@ TEST_UPDATE_BIN = $(BIN_DIR)/test_dns_update
 TEST_QUERY_BIN = $(BIN_DIR)/test_query_processor
 TEST_RR_BIN = $(BIN_DIR)/test_rr_types
 TEST_TSIG_BIN = $(BIN_DIR)/test_tsig
+TEST_ACL_BIN = $(BIN_DIR)/test_acl
 TEST_RR_ROUNDTRIP_BIN = $(BIN_DIR)/test_rr_roundtrip
 TEST_ZONE_ROUNDTRIP_BIN = $(BIN_DIR)/test_zone_roundtrip
+TEST_TSIG_HMAC_BIN = $(BIN_DIR)/test_tsig_hmac
+TEST_ZONE_MATCHING_BIN = $(BIN_DIR)/test_zone_matching
 
 # Default target
 all: $(VERSION_FILE) $(SERVER_BIN)
@@ -100,7 +121,7 @@ $(SERVER_BIN): $(SERVER_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(SERVER_OBJECTS) $(LDFLAGS)
 
 # Build tests
-test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN) $(TEST_TSIG_BIN) $(TEST_RR_ROUNDTRIP_BIN) $(TEST_ZONE_ROUNDTRIP_BIN)
+test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN) $(TEST_TSIG_BIN) $(TEST_ACL_BIN) $(TEST_RR_ROUNDTRIP_BIN) $(TEST_ZONE_ROUNDTRIP_BIN) $(TEST_TSIG_HMAC_BIN) $(TEST_ZONE_MATCHING_BIN)
 	@echo "Running UPDATE unit tests..."
 	$(TEST_UPDATE_BIN)
 	@echo "Running QueryProcessor unit tests..."
@@ -109,10 +130,16 @@ test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN) $(TEST_TSIG_BIN) $(TES
 	$(TEST_RR_BIN)
 	@echo "Running TSIG unit tests..."
 	$(TEST_TSIG_BIN)
+	@echo "Running ACL unit tests..."
+	$(TEST_ACL_BIN)
 	@echo "Running RR roundtrip tests..."
 	$(TEST_RR_ROUNDTRIP_BIN)
 	@echo "Running Zone roundtrip tests..."
 	$(TEST_ZONE_ROUNDTRIP_BIN)
+	@echo "Running TSIG HMAC tests..."
+	$(TEST_TSIG_HMAC_BIN)
+	@echo "Running Zone matching tests..."
+	$(TEST_ZONE_MATCHING_BIN)
 
 $(TEST_UPDATE_BIN): $(TEST_UPDATE_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_UPDATE_OBJECTS) $(TEST_LDFLAGS)
@@ -126,11 +153,20 @@ $(TEST_RR_BIN): $(TEST_RR_OBJECTS) | $(BIN_DIR)
 $(TEST_TSIG_BIN): $(TEST_TSIG_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_TSIG_OBJECTS) -lpthread -lssl -lcrypto
 
+$(TEST_ACL_BIN): $(TEST_ACL_OBJECTS) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $(TEST_ACL_OBJECTS) -lpthread -lssl -lcrypto
+
 $(TEST_RR_ROUNDTRIP_BIN): $(TEST_RR_ROUNDTRIP_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_RR_ROUNDTRIP_OBJECTS) $(TEST_LDFLAGS)
 
 $(TEST_ZONE_ROUNDTRIP_BIN): $(TEST_ZONE_ROUNDTRIP_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_ZONE_ROUNDTRIP_OBJECTS) $(TEST_LDFLAGS)
+
+$(TEST_TSIG_HMAC_BIN): $(TEST_TSIG_HMAC_OBJECTS) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $(TEST_TSIG_HMAC_OBJECTS) -lpthread -lssl -lcrypto
+
+$(TEST_ZONE_MATCHING_BIN): $(TEST_ZONE_MATCHING_OBJECTS) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $(TEST_ZONE_MATCHING_OBJECTS) -lpthread -lssl -lcrypto
 
 # Build object files
 $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
@@ -148,10 +184,19 @@ $(BUILD_DIR)/test_rr_%.o: %.cpp | $(BUILD_DIR)
 $(BUILD_DIR)/test_tsig_%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/test_acl_%.o: %.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 $(BUILD_DIR)/test_rr_rt_%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/test_zone_rt_%.o: %.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/test_tsig_hmac_%.o: %.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/test_zone_match_%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Integration tests
