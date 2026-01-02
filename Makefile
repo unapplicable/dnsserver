@@ -69,7 +69,7 @@ TEST_TSIG_HMAC_SOURCES = test_tsig_hmac.cpp tsig.cpp rrtsig.cpp rr.cpp message.c
                         rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                         rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp
 
-TEST_ZONE_MATCHING_SOURCES = test_zone_matching.cpp zone.cpp zoneFileLoader.cpp zoneFileSaver.cpp \
+TEST_ZONE_MATCHING_SOURCES = test_zone_matching.cpp zone.cpp zone_authority.cpp zoneFileLoader.cpp zoneFileSaver.cpp \
                              rr.cpp acl.cpp tsig.cpp rrtsig.cpp message.cpp \
                              rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                              rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp

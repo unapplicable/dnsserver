@@ -1,0 +1,5 @@
+$ORIGIN zone2.test.
+@ IN SOA ns1.zone2.test. admin.zone2.test. 1 3600 1800 604800 86400
+@ IN NS ns1.zone2.test.
+ns1 IN A 192.168.2.1
+host2 IN A 192.168.2.20

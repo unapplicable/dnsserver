@@ -14,7 +14,10 @@ ZoneLookupResult ZoneAuthority::findZoneForName(const string& zone_name,
                                                  unsigned long client_addr) const
 {
     ZoneLookupResult result;
+    Zone* best_match = NULL;
+    size_t best_match_length = 0;
     
+    // Find the longest matching zone (most specific)
     for (vector<Zone*>::const_iterator ziter = zones_.begin(); ziter != zones_.end(); ++ziter)
     {
         Zone *z = *ziter;
@@ -42,31 +45,38 @@ ZoneLookupResult ZoneAuthority::findZoneForName(const string& zone_name,
             }
         }
         
-        if (matches)
+        // Keep track of the longest (most specific) matching zone
+        if (matches && zone_normalized.length() > best_match_length)
         {
-            result.found = true;
-            
-            // Check ACL if present
-            if (z->acl && z->acl->size() > 0)
-            {
-                Zone* acl_zone = NULL;
-                if (z->acl->checkAccess(client_addr, &acl_zone))
-                {
-                    result.authorized = true;
-                    result.zone = acl_zone ? acl_zone : z;
-                    return result;
-                }
-                
-                result.authorized = false;
-                result.error_message = "Access denied by ACL";
-                return result;
-            }
-            else
+            best_match = z;
+            best_match_length = zone_normalized.length();
+        }
+    }
+    
+    if (best_match)
+    {
+        result.found = true;
+        
+        // Check ACL if present
+        if (best_match->acl && best_match->acl->size() > 0)
+        {
+            Zone* acl_zone = NULL;
+            if (best_match->acl->checkAccess(client_addr, &acl_zone))
             {
                 result.authorized = true;
-                result.zone = z;
+                result.zone = acl_zone ? acl_zone : best_match;
                 return result;
             }
+            
+            result.authorized = false;
+            result.error_message = "Access denied by ACL";
+            return result;
+        }
+        else
+        {
+            result.authorized = true;
+            result.zone = best_match;
+            return result;
         }
     }
     
