@@ -129,7 +129,10 @@ void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADD
 		return;
 	}
 	
-	Zone *z = lookup.authorized ? lookup.zone : lookup.zone;
+	if (!lookup.authorized)
+	{
+		return;
+	}
 	
 	Message *reply = new Message();
 	reply->id = request->id;
@@ -145,7 +148,15 @@ void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADD
 	{
 		vector<RR*> matches;
 		RR *rrNs = nullptr;
-		QueryProcessor::findMatches(qrr, *z, matches, &rrNs);
+		
+		// Search the returned zone (may be ACL sub-zone)
+		QueryProcessor::findMatches(qrr, *lookup.zone, matches, &rrNs);
+		
+		// If we got an ACL sub-zone, also search the parent zone
+		if (lookup.zone->parent)
+		{
+			QueryProcessor::findMatches(qrr, *lookup.zone->parent, matches, &rrNs);
+		}
 		
 		// Clone matches and add to answer section
 		for (vector<RR*>::const_iterator match_iter = matches.begin(); 
@@ -470,6 +481,7 @@ bool loadZoneFile(const string& zonefile_path, vector<Zone*>& zones)
 		cerr << "Error loading zones from " << zonefile_path << endl;
 		return false;
 	}
+	cerr << "Zone " << zonefile_path << " loaded" << endl << flush;
 	
 	return true;
 }
