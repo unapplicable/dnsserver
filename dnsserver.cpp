@@ -52,235 +52,305 @@ void dump(char *buf, int len)
 	cout << flush;
 }
 
+void dumpPacketHex(const char* label, char *buf, int len)
+{
+	cerr << "[" << label << "] Packet dump (" << len << " bytes):" << endl;
+	for (int i = 0; i < len; i++)
+	{
+		cerr << hex << setfill('0') << setw(2) << (int)(unsigned char)buf[i];
+		if (i % 16 == 15)
+			cerr << endl;
+		else if (i % 2 == 1)
+			cerr << " ";
+	}
+	if ((len - 1) % 16 != 15)
+		cerr << endl;
+	cerr << dec << flush;
+}
+
 void handleVersionBind(SOCKET s, SOCKADDR_STORAGE* addr, int addrlen, Message* request, vector<Zone*>& zones, bool is_tcp)
 {
-	const RR *qrr = request->qd[0];
-	Message *reply = new Message();
-	reply->id = request->id;
-	reply->opcode = Message::QUERY;
-	reply->qd.push_back(qrr->clone());
-	reply->truncation = false;
-	reply->query = false;
-	reply->authoritative = true;
-	reply->rcode = Message::CODENOERROR;
-	reply->recursionavailable = reply->recursiondesired = request->recursiondesired;
-	
-	// Check if there's a version.bind record in the zone file
-	string version_text = VERSION;
-	for (vector<Zone*>::iterator zone_iter = zones.begin(); zone_iter != zones.end(); ++zone_iter)
-	{
-		Zone* zone = *zone_iter;
-		const vector<RR*>& rrs = zone->getAllRecords();
-		for (vector<RR*>::const_iterator rr_iter = rrs.begin(); rr_iter != rrs.end(); ++rr_iter)
+	try {
+		const RR *qrr = request->qd[0];
+		Message *reply = new Message();
+		reply->id = request->id;
+		reply->opcode = Message::QUERY;
+		reply->qd.push_back(qrr->clone());
+		reply->truncation = false;
+		reply->query = false;
+		reply->authoritative = true;
+		reply->rcode = Message::CODENOERROR;
+		reply->recursionavailable = reply->recursiondesired = request->recursiondesired;
+		
+		// Check if there's a version.bind record in the zone file
+		string version_text = VERSION;
+		for (vector<Zone*>::iterator zone_iter = zones.begin(); zone_iter != zones.end(); ++zone_iter)
 		{
-			const RR* rr = *rr_iter;
-			if (rr->name == qrr->name && rr->type == RR::TXT && rr->rrclass == RR::CH)
+			Zone* zone = *zone_iter;
+			const vector<RR*>& rrs = zone->getAllRecords();
+			for (vector<RR*>::const_iterator rr_iter = rrs.begin(); rr_iter != rrs.end(); ++rr_iter)
 			{
-				// Found zone file entry - prepend it to version
-				version_text = rr->rdata + " " + VERSION;
-				break;
+				const RR* rr = *rr_iter;
+				if (rr->name == qrr->name && rr->type == RR::TXT && rr->rrclass == RR::CH)
+				{
+					// Found zone file entry - prepend it to version
+					version_text = rr->rdata + " " + VERSION;
+					break;
+				}
 			}
 		}
+		
+		// Create TXT record with version
+		RR *arr = new RRTXT();
+		arr->name = qrr->name;
+		arr->rrclass = RR::CH;
+		arr->type = RR::TXT;
+		arr->ttl = 0;
+		arr->query = false;
+		arr->rdata = version_text;
+		reply->an.push_back(arr);
+		
+		cout << *reply << flush;
+		
+		char response[0x10000];
+		unsigned int response_len = 0;
+		reply->pack(response, sizeof(response), response_len);
+		
+		send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
+		delete reply;
 	}
-	
-	// Create TXT record with version
-	RR *arr = new RRTXT();
-	arr->name = qrr->name;
-	arr->rrclass = RR::CH;
-	arr->type = RR::TXT;
-	arr->ttl = 0;
-	arr->query = false;
-	arr->rdata = version_text;
-	reply->an.push_back(arr);
-	
-	cout << *reply << flush;
-	
-	char response[0x10000];
-	unsigned int response_len = 0;
-	reply->pack(response, sizeof(response), response_len);
-	
-	send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
-	delete reply;
+	catch (const std::exception& e)
+	{
+		cerr << "\n[EXCEPTION] In handleVersionBind(): " << e.what() << endl;
+		cerr << flush;
+		throw; // Re-throw to be caught by handle()
+	}
+	catch (...)
+	{
+		cerr << "\n[EXCEPTION] Unknown exception in handleVersionBind()" << endl;
+		cerr << flush;
+		throw; // Re-throw to be caught by handle()
+	}
 }
 
-void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADDR_STORAGE *addr, int addrlen,
+void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, int addrlen,
                  Message *request, vector<Zone *>& zones, unsigned long fromaddr, bool is_tcp = false)
 {
-	if (request->qd.size() != 1 || !request->qd[0])
-	{
-		return;
-	}
-	
-	const RR *qrr = request->qd[0];
-	
-	// Handle CHAOS class version.bind queries
-	if (qrr->rrclass == RR::CH && qrr->type == RR::TXT && 
-	    (qrr->name == "version.bind." || qrr->name == "version."))
-	{
-		handleVersionBind(s, addr, addrlen, request, zones, is_tcp);
-		return;
-	}
-	
-	// Find zone using ZoneAuthority
-	ZoneAuthority authority(zones);
-	ZoneLookupResult lookup = authority.findZoneForName(qrr->name, fromaddr);
-	
-	if (!lookup.found)
-	{
-		return;
-	}
-	
-	if (!lookup.authorized)
-	{
-		return;
-	}
-	
-	Message *reply = new Message();
-	reply->id = request->id;
-	reply->opcode = Message::QUERY;
-	reply->qd.push_back(qrr->clone());
-	reply->truncation = false;
-	reply->query = false;
-	reply->authoritative = true;
-	reply->rcode = Message::CODENOERROR;
-	reply->recursionavailable = reply->recursiondesired = request->recursiondesired;
-	
-	// Use QueryProcessor to find matching records
-	{
-		vector<RR*> matches;
-		RR *rrNs = nullptr;
-		
-		// Search the zone (ACL longest-match already applied in zone_authority)
-		QueryProcessor::findMatches(qrr, *lookup.zone, matches, &rrNs);
-		
-		// Clone matches and add to answer section
-		for (vector<RR*>::const_iterator match_iter = matches.begin(); 
-		     match_iter != matches.end(); ++match_iter)
+	try {
+		if (request->qd.size() != 1 || !request->qd[0])
 		{
-			RR *arr = (*match_iter)->clone();
-			arr->query = false;
-			arr->ttl = 10 * 60; // 10 minutes
-			reply->an.push_back(arr);
+			return;
 		}
 		
-		if (reply->an.size() == 0 && rrNs != nullptr) {
-			RR *arr = rrNs->clone();
-			arr->query = false;
-			arr->ttl = 10 * 60; // 10 minutes
-			reply->ns.push_back(arr);
-			reply->authoritative = true;
+		const RR *qrr = request->qd[0];
+		
+		// Handle CHAOS class version.bind queries
+		if (qrr->rrclass == RR::CH && qrr->type == RR::TXT && 
+		    (qrr->name == "version.bind." || qrr->name == "version."))
+		{
+			handleVersionBind(s, addr, addrlen, request, zones, is_tcp);
+			return;
 		}
-	}
-	
-	cout << *reply << flush;
-	
-	char response[0x10000];
-	unsigned int response_len = 0;
-	reply->pack(response, sizeof(response), response_len);
-	
-	send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
-	
-	delete reply;
-}
-
-void handleUpdate(SOCKET s, char *buf, int len, char * /*from*/, SOCKADDR_STORAGE *addr, int addrlen, 
-                  Message *request, vector<Zone *>& zones, unsigned long fromaddr, bool is_tcp = false)
-{
-	const RR *zone_rr = NULL;
-	Message *reply = new Message();
-	reply->id = request->id;
-	reply->opcode = Message::UPDATE;
-	reply->query = false;
-	reply->authoritative = true;
-	reply->truncation = false;
-	reply->recursiondesired = false;
-	reply->recursionavailable = false;
-	reply->rcode = Message::CODENOERROR;
-	
-	if (request->qd.size() != 1 || !request->qd[0])
-	{
-		cout << "UPDATE: Invalid zone section" << endl << flush;
-		reply->rcode = Message::CODEFORMATERROR;
-		goto send_response;
-	}
-	
-	zone_rr = request->qd[0];
-	if (zone_rr->type != RR::SOA)
-	{
-		cout << "UPDATE: Zone section must be SOA" << endl << flush;
-		reply->rcode = Message::CODEFORMATERROR;
-		goto send_response;
-	}
-	
-	cout << "UPDATE: Processing zone " << zone_rr->name << endl << flush;
-	
-	{
+		
 		// Find zone using ZoneAuthority
 		ZoneAuthority authority(zones);
-		ZoneLookupResult lookup = authority.findZoneForName(zone_rr->name, fromaddr);
+		ZoneLookupResult lookup = authority.findZoneForName(qrr->name, fromaddr);
 		
-		if (!lookup.found || !lookup.authorized)
+		if (!lookup.found)
 		{
-			cout << "UPDATE: " << lookup.error_message << endl << flush;
-			reply->rcode = Message::CODEREFUSED;
+			return;
+		}
+		
+		if (!lookup.authorized)
+		{
+			return;
+		}
+		
+		Message *reply = new Message();
+		reply->id = request->id;
+		reply->opcode = Message::QUERY;
+		reply->qd.push_back(qrr->clone());
+		reply->truncation = false;
+		reply->query = false;
+		reply->authoritative = true;
+		reply->rcode = Message::CODENOERROR;
+		reply->recursionavailable = reply->recursiondesired = request->recursiondesired;
+		
+		// Use QueryProcessor to find matching records
+		{
+			vector<RR*> matches;
+			RR *rrNs = nullptr;
+			
+			// Search the zone (ACL longest-match already applied in zone_authority)
+			QueryProcessor::findMatches(qrr, *lookup.zone, matches, &rrNs);
+			
+			// Clone matches and add to answer section
+			for (vector<RR*>::const_iterator match_iter = matches.begin(); 
+			     match_iter != matches.end(); ++match_iter)
+			{
+				RR *arr = (*match_iter)->clone();
+				arr->query = false;
+				arr->ttl = 10 * 60; // 10 minutes
+				reply->an.push_back(arr);
+			}
+			
+			if (reply->an.size() == 0 && rrNs != nullptr) {
+				RR *arr = rrNs->clone();
+				arr->query = false;
+				arr->ttl = 10 * 60; // 10 minutes
+				reply->ns.push_back(arr);
+				reply->authoritative = true;
+			}
+		}
+		
+		cout << *reply << flush;
+		
+		char response[0x10000];
+		unsigned int response_len = 0;
+		reply->pack(response, sizeof(response), response_len);
+		
+		send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
+		
+		delete reply;
+	}
+	catch (const std::exception& e)
+	{
+		cerr << "\n[EXCEPTION] In handleQuery(): " << e.what() << endl;
+		cerr << "[EXCEPTION] Query: " << (request->qd[0] ? request->qd[0]->name : "NULL") 
+		     << " from " << from << endl;
+		dumpPacketHex("QUERY_EXCEPTION", buf, len);
+		cerr << flush;
+		throw; // Re-throw to be caught by handle()
+	}
+	catch (...)
+	{
+		cerr << "\n[EXCEPTION] Unknown exception in handleQuery()" << endl;
+		cerr << "[EXCEPTION] Query: " << (request->qd[0] ? request->qd[0]->name : "NULL") 
+		     << " from " << from << endl;
+		dumpPacketHex("QUERY_EXCEPTION", buf, len);
+		cerr << flush;
+		throw; // Re-throw to be caught by handle()
+	}
+}
+
+void handleUpdate(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, int addrlen, 
+                  Message *request, vector<Zone *>& zones, unsigned long fromaddr, bool is_tcp = false)
+{
+	try {
+		const RR *zone_rr = NULL;
+		Message *reply = new Message();
+		reply->id = request->id;
+		reply->opcode = Message::UPDATE;
+		reply->query = false;
+		reply->authoritative = true;
+		reply->truncation = false;
+		reply->recursiondesired = false;
+		reply->recursionavailable = false;
+		reply->rcode = Message::CODENOERROR;
+		
+		if (request->qd.size() != 1 || !request->qd[0])
+		{
+			cout << "UPDATE: Invalid zone section" << endl << flush;
+			reply->rcode = Message::CODEFORMATERROR;
 			goto send_response;
 		}
 		
-		Zone *target_zone = lookup.zone;
-		cout << "UPDATE: Target zone found: " << target_zone->name << endl << flush;
-		
-		// TSIG Authentication Check
-		if (target_zone->tsig_key)
+		zone_rr = request->qd[0];
+		if (zone_rr->type != RR::SOA)
 		{
-			string tsig_error;
-			if (!TSIG::verify(request, buf, len, target_zone->tsig_key, tsig_error))
+			cout << "UPDATE: Zone section must be SOA" << endl << flush;
+			reply->rcode = Message::CODEFORMATERROR;
+			goto send_response;
+		}
+		
+		cout << "UPDATE: Processing zone " << zone_rr->name << endl << flush;
+		
+		{
+			// Find zone using ZoneAuthority
+			ZoneAuthority authority(zones);
+			ZoneLookupResult lookup = authority.findZoneForName(zone_rr->name, fromaddr);
+			
+			if (!lookup.found || !lookup.authorized)
 			{
-				cout << "UPDATE: TSIG verification failed: " << tsig_error << endl << flush;
+				cout << "UPDATE: " << lookup.error_message << endl << flush;
 				reply->rcode = Message::CODEREFUSED;
 				goto send_response;
 			}
-			cout << "UPDATE: TSIG verification successful" << endl << flush;
+			
+			Zone *target_zone = lookup.zone;
+			cout << "UPDATE: Target zone found: " << target_zone->name << endl << flush;
+			
+			// TSIG Authentication Check
+			if (target_zone->tsig_key)
+			{
+				string tsig_error;
+				if (!TSIG::verify(request, buf, len, target_zone->tsig_key, tsig_error))
+				{
+					cout << "UPDATE: TSIG verification failed: " << tsig_error << endl << flush;
+					reply->rcode = Message::CODEREFUSED;
+					goto send_response;
+				}
+				cout << "UPDATE: TSIG verification successful" << endl << flush;
+			}
+			
+			cout << "UPDATE: Prerequisites: " << request->an.size() << ", Updates: " << request->ns.size() << endl << flush;
+			
+			// Check prerequisites using UpdateProcessor
+			string prereq_error;
+			if (!UpdateProcessor::checkPrerequisites(request, *target_zone, prereq_error))
+			{
+				cout << "UPDATE: " << prereq_error << endl << flush;
+				reply->rcode = Message::CODENAMEERROR;
+				goto send_response;
+			}
+			
+			cout << "UPDATE: All prerequisites passed" << endl << flush;
+			
+			// CRITICAL SECTION START: Protect all zone modifications
+			pthread_mutex_lock(&g_zone_mutex);
+			
+			// Apply updates using UpdateProcessor
+			string update_error;
+			UpdateProcessor::applyUpdates(request, *target_zone, update_error);
+			
+			pthread_mutex_unlock(&g_zone_mutex);
+			// CRITICAL SECTION END
+			
+			cout << "UPDATE: Success" << endl << flush;
 		}
 		
-		cout << "UPDATE: Prerequisites: " << request->an.size() << ", Updates: " << request->ns.size() << endl << flush;
-		
-		// Check prerequisites using UpdateProcessor
-		string prereq_error;
-		if (!UpdateProcessor::checkPrerequisites(request, *target_zone, prereq_error))
-		{
-			cout << "UPDATE: " << prereq_error << endl << flush;
-			reply->rcode = Message::CODENAMEERROR;
-			goto send_response;
-		}
-		
-		cout << "UPDATE: All prerequisites passed" << endl << flush;
-		
-		// CRITICAL SECTION START: Protect all zone modifications
-		pthread_mutex_lock(&g_zone_mutex);
-		
-		// Apply updates using UpdateProcessor
-		string update_error;
-		UpdateProcessor::applyUpdates(request, *target_zone, update_error);
-		
-		pthread_mutex_unlock(&g_zone_mutex);
-		// CRITICAL SECTION END
-		
-		cout << "UPDATE: Success" << endl << flush;
-	}
-	
 send_response:
-	if (zone_rr)
-		reply->qd.push_back(zone_rr->clone());
-	
-	char packet[0x10000] = {};
-	unsigned int packetsize = 0;
-	
-	cout << *reply << endl << flush;
-	
-	reply->pack(packet, (unsigned int)sizeof(packet), packetsize);
-	send_dns_response(s, packet, packetsize, addr, addrlen, is_tcp);
-	
-	delete reply;
+		if (zone_rr)
+			reply->qd.push_back(zone_rr->clone());
+		
+		char packet[0x10000] = {};
+		unsigned int packetsize = 0;
+		
+		cout << *reply << endl << flush;
+		
+		reply->pack(packet, (unsigned int)sizeof(packet), packetsize);
+		send_dns_response(s, packet, packetsize, addr, addrlen, is_tcp);
+		
+		delete reply;
+	}
+	catch (const std::exception& e)
+	{
+		cerr << "\n[EXCEPTION] In handleUpdate(): " << e.what() << endl;
+		cerr << "[EXCEPTION] Zone: " << (request->qd[0] ? request->qd[0]->name : "NULL") 
+		     << " from " << from << endl;
+		dumpPacketHex("UPDATE_EXCEPTION", buf, len);
+		cerr << flush;
+		throw; // Re-throw to be caught by handle()
+	}
+	catch (...)
+	{
+		cerr << "\n[EXCEPTION] Unknown exception in handleUpdate()" << endl;
+		cerr << "[EXCEPTION] Zone: " << (request->qd[0] ? request->qd[0]->name : "NULL") 
+		     << " from " << from << endl;
+		dumpPacketHex("UPDATE_EXCEPTION", buf, len);
+		cerr << flush;
+		throw; // Re-throw to be caught by handle()
+	}
 }
 
 
@@ -304,32 +374,48 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 
 	//dump(buf, len);
 
-	Message *msgtest = new Message();
-	unsigned int offset = 0;
-	if (!msgtest->unpack(buf, len, offset))
-	{
-		delete msgtest;
-		cout << "faulty" << endl << flush;
-		return;
-	}
+	try {
+		Message *msgtest = new Message();
+		unsigned int offset = 0;
+		if (!msgtest->unpack(buf, len, offset))
+		{
+			delete msgtest;
+			cout << "faulty" << endl << flush;
+			return;
+		}
 
-	cout << *msgtest << flush;
-	
-	if (msgtest->query && msgtest->opcode == Message::UPDATE)
-	{
-		handleUpdate(s, buf, len, from, addr, addrlen, msgtest, zones, fromaddr, is_tcp);
-		delete msgtest;
-		return;
-	}
-	
-	if (msgtest->query && msgtest->opcode == Message::QUERY)
-	{
-		handleQuery(s, buf, len, from, addr, addrlen, msgtest, zones, fromaddr, is_tcp);
-		delete msgtest;
-		return;
-	}
+		cout << *msgtest << flush;
+		
+		if (msgtest->query && msgtest->opcode == Message::UPDATE)
+		{
+			handleUpdate(s, buf, len, from, addr, addrlen, msgtest, zones, fromaddr, is_tcp);
+			delete msgtest;
+			return;
+		}
+		
+		if (msgtest->query && msgtest->opcode == Message::QUERY)
+		{
+			handleQuery(s, buf, len, from, addr, addrlen, msgtest, zones, fromaddr, is_tcp);
+			delete msgtest;
+			return;
+		}
 
-	delete msgtest;
+		delete msgtest;
+	}
+	catch (const std::exception& e)
+	{
+		cerr << "\n[EXCEPTION] Caught exception in handle(): " << e.what() << endl;
+		cerr << "[EXCEPTION] Client: " << from << ", Packet length: " << len << " bytes" << endl;
+		dumpPacketHex("EXCEPTION", buf, len);
+		cerr << flush;
+	}
+	catch (...)
+	{
+		cerr << "\n[EXCEPTION] Caught unknown exception in handle()" << endl;
+		cerr << "[EXCEPTION] Client: " << from << ", Packet length: " << len << " bytes" << endl;
+		dumpPacketHex("EXCEPTION", buf, len);
+		cerr << flush;
+	}
 }
 
 int setnonblock(SOCKET sockfd, int nonblock)
