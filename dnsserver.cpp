@@ -16,6 +16,7 @@
 using namespace std;
 
 #include "zone.h"
+#include "acl.h"
 #include "message.h"
 #include "rr.h"
 #include "rrsoa.h"
@@ -149,14 +150,8 @@ void handleQuery(SOCKET s, char * /*buf*/, int /*len*/, char * /*from*/, SOCKADD
 		vector<RR*> matches;
 		RR *rrNs = nullptr;
 		
-		// Search the returned zone (may be ACL sub-zone)
+		// Search the zone (ACL longest-match already applied in zone_authority)
 		QueryProcessor::findMatches(qrr, *lookup.zone, matches, &rrNs);
-		
-		// If we got an ACL sub-zone, also search the parent zone
-		if (lookup.zone->parent)
-		{
-			QueryProcessor::findMatches(qrr, *lookup.zone->parent, matches, &rrNs);
-		}
 		
 		// Clone matches and add to answer section
 		for (vector<RR*>::const_iterator match_iter = matches.begin(); 

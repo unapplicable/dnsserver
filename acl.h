@@ -31,6 +31,7 @@ public:
 	
 	void addSubnet(const std::string& subnet_str, Zone* zone);
 	bool checkAccess(unsigned long client_ip, Zone** out_zone) const;
+	Zone* findMostSpecificMatch(unsigned long client_ip) const;
 	size_t size() const { return entries.size(); }
 	std::string toString() const;
 	void propagateTSIGKey(const struct TSIG::Key* key);

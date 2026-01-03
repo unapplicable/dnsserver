@@ -57,23 +57,26 @@ ZoneLookupResult ZoneAuthority::findZoneForName(const string& zone_name,
     {
         result.found = true;
         
-        // Check ACL if present
+        // Check ACL if present - use longest match
         if (best_match->acl && best_match->acl->size() > 0)
         {
-            Zone* acl_zone = NULL;
-            if (best_match->acl->checkAccess(client_addr, &acl_zone))
+            Zone* acl_zone = best_match->acl->findMostSpecificMatch(client_addr);
+            if (acl_zone)
             {
+                // Found matching ACL entry - use its zone
                 result.authorized = true;
-                result.zone = acl_zone ? acl_zone : best_match;
+                result.zone = acl_zone;
                 return result;
             }
             
+            // ACL present but no match - deny access
             result.authorized = false;
             result.error_message = "Access denied by ACL";
             return result;
         }
         else
         {
+            // No ACL - allow access to parent zone
             result.authorized = true;
             result.zone = best_match;
             return result;

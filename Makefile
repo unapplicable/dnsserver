@@ -84,6 +84,12 @@ TEST_ACL_UNAUTHORIZED_SOURCES = test_acl_unauthorized.cpp zone_authority.cpp zon
                                 rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                                 rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp update_processor.cpp
 
+TEST_ACL_LONGEST_MATCH_SOURCES = test_acl_longest_match.cpp acl.cpp zone.cpp zoneFileLoader.cpp zoneFileSaver.cpp \
+                                 rr.cpp tsig.cpp rrtsig.cpp message.cpp zone_authority.cpp \
+                                 rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
+                                 rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp \
+                                 update_processor.cpp query_processor.cpp
+
 # Object files
 SERVER_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SERVER_SOURCES))
 TEST_UPDATE_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_%.o,$(TEST_UPDATE_SOURCES))
@@ -97,6 +103,7 @@ TEST_TSIG_HMAC_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_tsig_hmac_%.o,$(TEST
 TEST_ZONE_MATCHING_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_zone_match_%.o,$(TEST_ZONE_MATCHING_SOURCES))
 TEST_ACL_QUERY_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_acl_query_%.o,$(TEST_ACL_QUERY_SOURCES))
 TEST_ACL_UNAUTHORIZED_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_acl_unauth_%.o,$(TEST_ACL_UNAUTHORIZED_SOURCES))
+TEST_ACL_LONGEST_MATCH_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_acl_longest_%.o,$(TEST_ACL_LONGEST_MATCH_SOURCES))
 
 # Executables
 SERVER_BIN = $(BIN_DIR)/dnsserver
@@ -111,6 +118,7 @@ TEST_TSIG_HMAC_BIN = $(BIN_DIR)/test_tsig_hmac
 TEST_ZONE_MATCHING_BIN = $(BIN_DIR)/test_zone_matching
 TEST_ACL_QUERY_BIN = $(BIN_DIR)/test_acl_query
 TEST_ACL_UNAUTHORIZED_BIN = $(BIN_DIR)/test_acl_unauthorized
+TEST_ACL_LONGEST_MATCH_BIN = $(BIN_DIR)/test_acl_longest_match
 
 # Default target
 all: $(VERSION_FILE) $(SERVER_BIN)
@@ -135,7 +143,7 @@ $(SERVER_BIN): $(SERVER_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(SERVER_OBJECTS) $(LDFLAGS)
 
 # Build tests
-test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN) $(TEST_TSIG_BIN) $(TEST_ACL_BIN) $(TEST_RR_ROUNDTRIP_BIN) $(TEST_ZONE_ROUNDTRIP_BIN) $(TEST_TSIG_HMAC_BIN) $(TEST_ZONE_MATCHING_BIN) $(TEST_ACL_QUERY_BIN) $(TEST_ACL_UNAUTHORIZED_BIN)
+test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN) $(TEST_TSIG_BIN) $(TEST_ACL_BIN) $(TEST_RR_ROUNDTRIP_BIN) $(TEST_ZONE_ROUNDTRIP_BIN) $(TEST_TSIG_HMAC_BIN) $(TEST_ZONE_MATCHING_BIN) $(TEST_ACL_QUERY_BIN) $(TEST_ACL_UNAUTHORIZED_BIN) $(TEST_ACL_LONGEST_MATCH_BIN)
 	@echo "Running UPDATE unit tests..."
 	$(TEST_UPDATE_BIN)
 	@echo "Running QueryProcessor unit tests..."
@@ -158,6 +166,8 @@ test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN) $(TEST_TSIG_BIN) $(TES
 	$(TEST_ACL_QUERY_BIN)
 	@echo "Running ACL unauthorized tests..."
 	$(TEST_ACL_UNAUTHORIZED_BIN)
+	@echo "Running ACL longest match tests..."
+	$(TEST_ACL_LONGEST_MATCH_BIN)
 
 $(TEST_UPDATE_BIN): $(TEST_UPDATE_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_UPDATE_OBJECTS) $(TEST_LDFLAGS)
@@ -191,6 +201,9 @@ $(TEST_ACL_QUERY_BIN): $(TEST_ACL_QUERY_OBJECTS) | $(BIN_DIR)
 
 $(TEST_ACL_UNAUTHORIZED_BIN): $(TEST_ACL_UNAUTHORIZED_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_ACL_UNAUTHORIZED_OBJECTS) -lpthread -lssl -lcrypto
+
+$(TEST_ACL_LONGEST_MATCH_BIN): $(TEST_ACL_LONGEST_MATCH_OBJECTS) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $(TEST_ACL_LONGEST_MATCH_OBJECTS) -lpthread -lssl -lcrypto
 
 # Build object files
 $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
@@ -227,6 +240,9 @@ $(BUILD_DIR)/test_acl_query_%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/test_acl_unauth_%.o: %.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/test_acl_longest_%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Integration tests

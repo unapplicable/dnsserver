@@ -90,6 +90,27 @@ bool Acl::checkAccess(unsigned long client_ip, Zone** out_zone) const
 	return false;
 }
 
+Zone* Acl::findMostSpecificMatch(unsigned long client_ip) const
+{
+	Zone* best_match = NULL;
+	unsigned long best_mask = 0;
+	
+	for (vector<AclEntry>::const_iterator it = entries.begin(); it != entries.end(); ++it)
+	{
+		if (it->subnet.match(client_ip))
+		{
+			unsigned long current_mask = ntohl(it->subnet.getMask());
+			if (current_mask >= best_mask)
+			{
+				best_mask = current_mask;
+				best_match = it->zone;
+			}
+		}
+	}
+	
+	return best_match;
+}
+
 string Acl::toString() const
 {
 	ostringstream ss;
