@@ -775,10 +775,39 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 			if (client == INVALID_SOCKET)
 				continue;
 
+			// Set receive timeout to prevent slowloris attacks
+			struct timeval timeout;
+			timeout.tv_sec = 10;  // 10 second timeout for DNS over TCP
+			timeout.tv_usec = 0;
+#ifdef LINUX
+			if (setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
+			{
+				cerr << "[TCP_TIMEOUT] Failed to set socket timeout" << endl;
+			}
+#else
+			DWORD timeout_ms = 10000; // 10 seconds in milliseconds for Windows
+			if (setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout_ms, sizeof(timeout_ms)) < 0)
+			{
+				cerr << "[TCP_TIMEOUT] Failed to set socket timeout" << endl;
+			}
+#endif
+
 			// Read length prefix
 			unsigned short msglen;
-			if (recv(client, (char*)&msglen, 2, 0) != 2)
+			int recv_result = recv(client, (char*)&msglen, 2, 0);
+			if (recv_result != 2)
 			{
+#ifdef LINUX
+				if (errno == EAGAIN || errno == EWOULDBLOCK)
+				{
+					cerr << "[TCP_TIMEOUT] Client connection timed out reading length prefix" << endl;
+				}
+#else
+				if (WSAGetLastError() == WSAETIMEDOUT)
+				{
+					cerr << "[TCP_TIMEOUT] Client connection timed out reading length prefix" << endl;
+				}
+#endif
 				closesocket_compat(client);
 				continue;
 			}
@@ -790,8 +819,20 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 			}
 
 			// Read message
-			if (recv(client, buf, msglen, 0) != msglen)
+			recv_result = recv(client, buf, msglen, 0);
+			if (recv_result != msglen)
 			{
+#ifdef LINUX
+				if (errno == EAGAIN || errno == EWOULDBLOCK)
+				{
+					cerr << "[TCP_TIMEOUT] Client connection timed out reading message body" << endl;
+				}
+#else
+				if (WSAGetLastError() == WSAETIMEDOUT)
+				{
+					cerr << "[TCP_TIMEOUT] Client connection timed out reading message body" << endl;
+				}
+#endif
 				closesocket_compat(client);
 				continue;
 			}
