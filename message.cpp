@@ -102,7 +102,12 @@ bool Message::unpack(char *data, unsigned int len, unsigned int& offset)
 				}
 			} catch (std::exception& ex)
 			{
-				std::cerr << "failed to unpack" << std::endl;
+				const char* section_names[] = {"QUESTION/ZONE", "ANSWER/PREREQ", "AUTHORITY/UPDATE", "ADDITIONAL"};
+				std::cerr << "[UNPACK_ERROR] Failed to unpack RR in section " << section_names[rrtype] 
+				          << " (index " << i << "/" << counts[rrtype] << ")" << std::endl;
+				std::cerr << "[UNPACK_ERROR] RR name: " << rr_name << ", type: " << rr_type 
+				          << ", offset: " << peek_offset << "/" << len << std::endl;
+				std::cerr << "[UNPACK_ERROR] Exception: " << ex.what() << std::endl;
 				delete r;
 				return false;
 			}

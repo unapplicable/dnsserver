@@ -380,6 +380,10 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 		if (!msgtest->unpack(buf, len, offset))
 		{
 			delete msgtest;
+			cerr << "[UNPACK_FAILED] Message unpacking failed" << endl;
+			cerr << "[UNPACK_FAILED] Client: " << from << ", Packet length: " << len << " bytes" << endl;
+			dumpPacketHex("UNPACK_FAILED", buf, len);
+			cerr << flush;
 			cout << "faulty" << endl << flush;
 			return;
 		}
