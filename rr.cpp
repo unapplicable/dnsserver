@@ -100,16 +100,72 @@ std::string RR::unpackName(char *data, unsigned int len, unsigned int& offset)
 	unsigned int& iter = offset;
 	bool packed = false;
 	
+	// Track visited offsets to detect compression loops
+	// DNS packet max size is 65536 bytes, need 65536 bits = 8192 bytes
+	static const unsigned int MAX_VISITED_BYTES = 8192; // 65536 / 8
+	unsigned char visited[MAX_VISITED_BYTES] = {0};
+	
+	// Limit maximum compression pointer jumps to prevent deep recursion
+	unsigned int jump_count = 0;
+	static const unsigned int MAX_JUMPS = 64;
+	
+	// Limit total name length (RFC 1035: max 255 bytes)
+	static const unsigned int MAX_NAME_LENGTH = 255;
 
 	for (unsigned int i = iter; ;)
 	{
 		if (i >= len)
-			throw std::exception();
+			throw DNSParseException(DNSParseException::OFFSET_OUT_OF_BOUNDS, 
+			                        "Reading beyond packet boundary", i, len);
 
 		unsigned char tokencode = (unsigned char)data[i];
 		if ((tokencode & 0xC0) == 0xC0)
 		{
-			i = ntohs((unsigned short &)data[i]) & ~0xC000;
+			// Compression pointer detected
+			if (i + 1 >= len)
+				throw DNSParseException(DNSParseException::TRUNCATED_PACKET,
+				                        "Incomplete compression pointer", i, len);
+			
+			unsigned int ptr_offset = ntohs((unsigned short &)data[i]) & ~0xC000;
+			
+			// Check for loop: have we visited this offset before?
+			// Calculate byte and bit indices in the visited array
+			unsigned int byte_idx = ptr_offset / 8;
+			unsigned int bit_idx = ptr_offset % 8;
+			
+			if (byte_idx < MAX_VISITED_BYTES)
+			{
+				if (visited[byte_idx] & (1 << bit_idx))
+				{
+					// Loop detected!
+					std::ostringstream details;
+					details << "Pointer at offset " << i << " points to " << ptr_offset;
+					throw DNSParseException(DNSParseException::COMPRESSION_LOOP,
+					                        details.str(), ptr_offset, len);
+				}
+				visited[byte_idx] |= (1 << bit_idx);
+			}
+			
+			// Check jump count limit
+			if (++jump_count > MAX_JUMPS)
+			{
+				std::ostringstream details;
+				details << "Exceeded max " << MAX_JUMPS << " jumps";
+				throw DNSParseException(DNSParseException::TOO_MANY_JUMPS,
+				                        details.str(), i, len);
+			}
+			
+			// Check pointer doesn't point beyond packet
+			if (ptr_offset >= len)
+			{
+				std::ostringstream details;
+				details << "Pointer " << ptr_offset << " >= packet length " << len;
+				throw DNSParseException(DNSParseException::POINTER_OUT_OF_BOUNDS,
+				                        details.str(), ptr_offset, len);
+			}
+			
+			// Follow the pointer
+			i = ptr_offset;
 			if (!packed)
 			{
 				iter += 2;
@@ -127,7 +183,23 @@ std::string RR::unpackName(char *data, unsigned int len, unsigned int& offset)
 			break;
 
 		if (i + tokencode >= len)
-			throw std::exception();
+		{
+			std::ostringstream details;
+			details << "Label length " << (int)tokencode << " at offset " << (i-1) 
+			        << " extends beyond packet";
+			throw DNSParseException(DNSParseException::LABEL_TOO_LONG,
+			                        details.str(), i, len);
+		}
+
+		// Check name length doesn't exceed maximum
+		if (name.length() + tokencode + 1 > MAX_NAME_LENGTH)
+		{
+			std::ostringstream details;
+			details << "Current name '" << name << "' + label of " << (int)tokencode 
+			        << " bytes exceeds " << MAX_NAME_LENGTH;
+			throw DNSParseException(DNSParseException::NAME_TOO_LONG,
+			                        details.str(), i, len);
+		}
 
 		if (!name.empty())
 			name += '.';
@@ -248,7 +320,9 @@ void RR::fromString(const std::vector<std::string>& tokens, const std::string& o
 
 void RR::fromStringContents(const std::vector<std::string>& /* tokens */, const std::string& /* origin */)
 {
-	throw std::exception();
+	std::ostringstream oss;
+	oss << "fromStringContents not implemented for RR type " << RRTypeToString(type);
+	throw std::runtime_error(oss.str());
 }
 
 void RR::packContents(char* data, unsigned int /* len */, unsigned int& offset)

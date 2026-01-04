@@ -34,6 +34,31 @@ inline bool wouldblock() { return WSAGetLastError() == WSAEWOULDBLOCK; }
 
 #endif
 
+// Set receive timeout on socket to prevent slowloris DoS attacks
+// Returns 0 on success, -1 on failure
+inline int set_recv_timeout(SOCKET s, int timeout_seconds)
+{
+#ifdef LINUX
+	struct timeval timeout;
+	timeout.tv_sec = timeout_seconds;
+	timeout.tv_usec = 0;
+	return setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+#else
+	DWORD timeout_ms = timeout_seconds * 1000;
+	return setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout_ms, sizeof(timeout_ms));
+#endif
+}
+
+// Check if last socket error was a timeout
+inline bool is_recv_timeout()
+{
+#ifdef LINUX
+	return errno == EAGAIN || errno == EWOULDBLOCK;
+#else
+	return WSAGetLastError() == WSAETIMEDOUT;
+#endif
+}
+
 // Send DNS response - handles both UDP and TCP
 // Unified implementation for all platforms
 inline int send_dns_response(SOCKET s, const char* buf, int len, SOCKADDR_STORAGE* addr, int addrlen, bool is_tcp)

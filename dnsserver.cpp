@@ -775,10 +775,21 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 			if (client == INVALID_SOCKET)
 				continue;
 
+			// Set receive timeout to prevent slowloris attacks
+			if (set_recv_timeout(client, 10) < 0)
+			{
+				cerr << "[TCP_TIMEOUT] Failed to set socket timeout" << endl;
+			}
+
 			// Read length prefix
 			unsigned short msglen;
-			if (recv(client, (char*)&msglen, 2, 0) != 2)
+			int recv_result = recv(client, (char*)&msglen, 2, 0);
+			if (recv_result != 2)
 			{
+				if (is_recv_timeout())
+				{
+					cerr << "[TCP_TIMEOUT] Client connection timed out reading length prefix" << endl;
+				}
 				closesocket_compat(client);
 				continue;
 			}
@@ -790,8 +801,13 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 			}
 
 			// Read message
-			if (recv(client, buf, msglen, 0) != msglen)
+			recv_result = recv(client, buf, msglen, 0);
+			if (recv_result != msglen)
 			{
+				if (is_recv_timeout())
+				{
+					cerr << "[TCP_TIMEOUT] Client connection timed out reading message body" << endl;
+				}
 				closesocket_compat(client);
 				continue;
 			}
