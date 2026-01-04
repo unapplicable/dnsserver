@@ -8,6 +8,73 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <stdexcept>
+
+// Custom exception for DNS parsing errors with context
+class DNSParseException : public std::runtime_error {
+public:
+	enum ErrorType {
+		OFFSET_OUT_OF_BOUNDS,
+		COMPRESSION_LOOP,
+		TOO_MANY_JUMPS,
+		POINTER_OUT_OF_BOUNDS,
+		LABEL_TOO_LONG,
+		NAME_TOO_LONG,
+		TRUNCATED_PACKET
+	};
+	
+	DNSParseException(ErrorType type, const std::string& details, 
+	                  unsigned int offset = 0, unsigned int len = 0)
+		: std::runtime_error(formatMessage(type, details, offset, len)),
+		  errorType(type), offset(offset), packetLen(len) {}
+	
+	ErrorType getType() const { return errorType; }
+	unsigned int getOffset() const { return offset; }
+	unsigned int getPacketLen() const { return packetLen; }
+	
+private:
+	ErrorType errorType;
+	unsigned int offset;
+	unsigned int packetLen;
+	
+	static std::string formatMessage(ErrorType type, const std::string& details,
+	                                  unsigned int offset, unsigned int len) {
+		std::ostringstream oss;
+		oss << "DNS Parse Error: ";
+		
+		switch (type) {
+			case OFFSET_OUT_OF_BOUNDS:
+				oss << "Offset out of bounds";
+				break;
+			case COMPRESSION_LOOP:
+				oss << "Compression pointer loop detected";
+				break;
+			case TOO_MANY_JUMPS:
+				oss << "Too many compression jumps";
+				break;
+			case POINTER_OUT_OF_BOUNDS:
+				oss << "Compression pointer points beyond packet";
+				break;
+			case LABEL_TOO_LONG:
+				oss << "Label exceeds maximum length";
+				break;
+			case NAME_TOO_LONG:
+				oss << "Domain name exceeds 255 bytes";
+				break;
+			case TRUNCATED_PACKET:
+				oss << "Truncated packet";
+				break;
+		}
+		
+		if (!details.empty())
+			oss << " - " << details;
+		
+		if (offset > 0 || len > 0)
+			oss << " (offset=" << offset << ", len=" << len << ")";
+		
+		return oss.str();
+	}
+};
 
 unsigned char hex2bin(const std::string& hex);
 std::string bin2hex(unsigned char bin);
