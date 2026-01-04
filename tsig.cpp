@@ -39,21 +39,20 @@ string TSIG::algorithmToName(Algorithm algo) {
 
 string TSIG::base64Decode(const string& encoded) {
     BIO *bio, *b64;
-    char buffer[encoded.length()];
-    memset(buffer, 0, sizeof(buffer));
+    vector<char> buffer(encoded.length());
     
     b64 = BIO_new(BIO_f_base64());
     bio = BIO_new_mem_buf(encoded.c_str(), encoded.length());
     bio = BIO_push(b64, bio);
     
     BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    int decoded_size = BIO_read(bio, buffer, sizeof(buffer));
+    int decoded_size = BIO_read(bio, buffer.data(), buffer.size());
     BIO_free_all(bio);
     
     if (decoded_size < 0)
         return "";
     
-    return string(buffer, decoded_size);
+    return string(buffer.data(), decoded_size);
 }
 
 string TSIG::base64Encode(const string& data) {

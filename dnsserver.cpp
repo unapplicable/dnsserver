@@ -834,8 +834,7 @@ int main(int argc, char* argv[])
 	vector<Zone *> zones;
 	vector<string> zonefiles;
 
-	cout << "dnsserver version " << VERSION << endl;
-	cout << "OpenSSL version " << OPENSSL_VERSION_TEXT << endl;
+	cout << "dnsserver " << VERSION << " | OpenSSL " << OPENSSL_VERSION_TEXT << " | " << BUILD_COMPILER << " | " << BUILD_FLAGS << endl;
 
 	if (argc < 3)
 	{

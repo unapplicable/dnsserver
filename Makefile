@@ -1,7 +1,19 @@
 # Makefile for DNS Server with UPDATE support
 
-CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++14 -g -DLINUX
+CXX ?= g++
+
+# Build configurations
+# Default: debug build with symbols, no optimization
+CXXFLAGS_DEBUG = -Wall -Wextra -std=c++14 -g -DLINUX
+# Release: optimized with native CPU instructions
+CXXFLAGS_RELEASE = -Wall -Wextra -std=c++14 -O2 -march=native -DNDEBUG -DLINUX
+# Release-LTO: maximum performance with link-time optimization and security hardening
+CXXFLAGS_RELEASE_LTO = -Wall -Wextra -std=c++14 -O3 -flto -march=native -DNDEBUG -DLINUX \
+                       -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE
+LDFLAGS_RELEASE_LTO = -flto -pie -Wl,-z,relro -Wl,-z,now
+
+# Default to debug build
+CXXFLAGS = $(CXXFLAGS_DEBUG)
 LDFLAGS = -lpthread -lssl -lcrypto
 TEST_LDFLAGS = -lpthread -lssl -lcrypto -lCatch2Main -lCatch2
 
@@ -123,6 +135,24 @@ TEST_ACL_LONGEST_MATCH_BIN = $(BIN_DIR)/test_acl_longest_match
 # Default target
 all: $(VERSION_FILE) $(SERVER_BIN)
 
+# Build configurations
+release:
+	@echo "Building optimized release binary..."
+	@$(MAKE) clean
+	@$(MAKE) CXXFLAGS="$(CXXFLAGS_RELEASE)" $(VERSION_FILE) $(SERVER_BIN)
+	@echo "Built optimized release binary: $(SERVER_BIN)"
+	@echo "Compiler: $(CXX)"
+	@echo "Flags: $(CXXFLAGS_RELEASE)"
+
+release-lto:
+	@echo "Building LTO+hardened release binary..."
+	@$(MAKE) clean
+	@$(MAKE) CXXFLAGS="$(CXXFLAGS_RELEASE_LTO)" LDFLAGS="$(LDFLAGS_RELEASE_LTO) -lpthread -lssl -lcrypto" $(VERSION_FILE) $(SERVER_BIN)
+	@echo "Built LTO+hardened release binary: $(SERVER_BIN)"
+	@echo "Compiler: $(CXX)"
+	@echo "Flags: $(CXXFLAGS_RELEASE_LTO)"
+	@echo "Security: Stack protector, FORTIFY_SOURCE, PIE, RELRO, NOW"
+
 # Generate version header
 $(VERSION_FILE):
 	@echo "Generating version information..."
@@ -132,6 +162,8 @@ $(VERSION_FILE):
 	@echo "#define GIT_BRANCH \"$(GIT_BRANCH)\"" >> $(VERSION_FILE)
 	@echo "#define BUILD_DATE \"$(BUILD_DATE)\"" >> $(VERSION_FILE)
 	@echo "#define VERSION \"$(GIT_BRANCH)-$(GIT_HASH) (built $(BUILD_DATE))\"" >> $(VERSION_FILE)
+	@echo "#define BUILD_COMPILER \"$(shell $(CXX) --version | head -1)\"" >> $(VERSION_FILE)
+	@echo "#define BUILD_FLAGS \"$(CXXFLAGS)\"" >> $(VERSION_FILE)
 	@echo "#endif" >> $(VERSION_FILE)
 
 # Create directories
@@ -292,4 +324,4 @@ $(BUILD_DIR)/test_test_dns_update.o: test_dns_update.cpp message.h rr.h update_p
 $(BUILD_DIR)/test_qp_test_query_processor.o: test_query_processor.cpp query_processor.h zone.h rr.h
 $(BUILD_DIR)/test_rr_test_rr_types.o: test_rr_types.cpp message.h rr.h rra.h rraaaa.h rrcert.h rrcname.h rrdhcid.h rrmx.h rrns.h rrptr.h rrsoa.h rrtxt.h zoneFileLoader.h zone.h
 
-.PHONY: all test test-integration test-all clean rebuild run-test
+.PHONY: all test test-integration test-all clean rebuild run-test release release-lto
