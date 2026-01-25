@@ -3,6 +3,7 @@
 #include "zone.h"
 #include "acl.h"
 #include "rr.h"
+#include "rrdynamic.h"
 #include "tsig.h"
 #include <iostream>
 
@@ -119,6 +120,36 @@ void ZoneFileLoader::handleTSIG(const std::vector<std::string>& tokens, Zone* pa
 	          << " (" << TSIG::algorithmToName(key->algorithm) << ")" << std::endl;
 }
 
+void ZoneFileLoader::handleDynamic(const std::vector<std::string>& tokens, Zone* current)
+{
+	// $DYNAMIC name filepath
+	// Example: $DYNAMIC _acme-challenge.example.com. /var/acme/challenge.txt
+	if (tokens.size() < 3)
+	{
+		std::cerr << "Warning: Invalid $DYNAMIC directive (needs: name filepath)" << std::endl;
+		return;
+	}
+	
+	if (!current)
+	{
+		std::cerr << "Warning: $DYNAMIC must come after $ORIGIN" << std::endl;
+		return;
+	}
+	
+	RRDYNAMIC* rr = new RRDYNAMIC();
+	
+	// Process the name with current origin
+	std::string origin = normalize_dns_name(current->name);
+	rr->name = process_domain_name(tokens[1], origin);
+	rr->ttl = 1;  // Short TTL for dynamic records
+	rr->rrclass = RR::CLASSIN;
+	rr->type = RR::DYNAMIC;
+	rr->filepath = tokens[2];
+	
+	std::cerr << "[" << current->name << "] DYNAMIC " << rr->name << " -> " << rr->filepath << std::endl;
+	current->addRecord(rr);
+}
+
 void ZoneFileLoader::handleResourceRecord(const std::vector<std::string>& tokens, Zone* current, std::string& previousName)
 {
 	// RR::fromString handles all parsing including TTL
@@ -190,16 +221,27 @@ bool ZoneFileLoader::load(const t_data& data, t_zones& zones, const std::string&
 			continue;
 		}
 		
-		if (tokens[0] == "$TSIG")
+	if (tokens[0] == "$TSIG")
+	{
+		if (tokens.size() < 4)
 		{
-			if (tokens.size() < 4)
-			{
-				std::cerr << "Warning: Invalid $TSIG directive (needs: keyname algorithm secret)" << std::endl;
-				continue;
-			}
-			handleTSIG(tokens, parent);
+			std::cerr << "Warning: Invalid $TSIG directive (needs: keyname algorithm secret)" << std::endl;
 			continue;
 		}
+		handleTSIG(tokens, parent);
+		continue;
+	}
+	
+	if (tokens[0] == "$DYNAMIC")
+	{
+		if (tokens.size() < 3)
+		{
+			std::cerr << "Warning: Invalid $DYNAMIC directive (needs: name filepath)" << std::endl;
+			continue;
+		}
+		handleDynamic(tokens, z);
+		continue;
+	}
 		
 		if (tokens.size() < 2)
 			continue;

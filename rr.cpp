@@ -13,6 +13,7 @@
 #include "rrdhcid.h"
 #include "rropt.h"
 #include "rrtsig.h"
+#include "rrdynamic.h"
 
 #include <cstring>
 #include <cctype>
@@ -255,10 +256,13 @@ RR* RR::createByType(RRType type)
 		case CERT:
 			return new RRCERT();
 
-		case DHCID:
-			return new RRDHCID();
+	case DHCID:
+		return new RRDHCID();
 
-		case OPT:
+	case DYNAMIC:
+		return new RRDYNAMIC();
+
+	case OPT:
 			return new RROPT();
 
 		case TSIG:

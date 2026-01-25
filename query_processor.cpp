@@ -1,11 +1,13 @@
 #include "query_processor.h"
+#include "rrdynamic.h"
 
 using namespace std;
 
 void QueryProcessor::findMatches(const RR* query_rr,
                                 const Zone& zone,
                                 vector<RR*>& matches,
-                                RR** ns_record)
+                                RR** ns_record,
+                                vector<RR*>* dynamic_records)
 {
     const vector<RR*>& all_records = zone.getAllRecords();
     
@@ -56,12 +58,31 @@ void QueryProcessor::findMatches(const RR* query_rr,
                 }
             }
         }
-        // Match by exact name and type, or wildcard type (names already lowercased)
-        else if ((rr->type == query_rr->type && rr->name == query_rr->name) ||
-                 (query_rr->type == RR::TYPESTAR && rr->name == query_rr->name))
-        {
+    // Match by exact name and type, or wildcard type (names already lowercased)
+    else if ((rr->type == query_rr->type && rr->name == query_rr->name) ||
+             (query_rr->type == RR::TYPESTAR && rr->name == query_rr->name) ||
+             // DYNAMIC records match TXT queries (they resolve to TXT)
+             (rr->type == RR::DYNAMIC && query_rr->type == RR::TXT && rr->name == query_rr->name))
+    {
+        // Special handling for DYNAMIC records
+        if (rr->type == RR::DYNAMIC) {
+            // Resolve the DYNAMIC to TXT records
+            RRDYNAMIC* dynamic_rr = dynamic_cast<RRDYNAMIC*>(rr);
+            if (dynamic_rr) {
+                vector<RR*> txt_records = dynamic_rr->resolveTXT();
+                // Add all resolved TXT records to matches
+                for (vector<RR*>::iterator it = txt_records.begin(); it != txt_records.end(); ++it) {
+                    matches.push_back(*it);
+                    // Track these for cleanup if caller wants them
+                    if (dynamic_records) {
+                        dynamic_records->push_back(*it);
+                    }
+                }
+            }
+        } else {
             matches.push_back(rr);
         }
+    }
         else if (rr->type == RR::NS)
         {
             // Check if query name ends with NS record name (subdomain check)

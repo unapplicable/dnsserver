@@ -179,32 +179,40 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 		reply->rcode = Message::CODENOERROR;
 		reply->recursionavailable = reply->recursiondesired = request->recursiondesired;
 		
-		// Use QueryProcessor to find matching records
+	// Use QueryProcessor to find matching records
+	{
+		vector<RR*> matches;
+		vector<RR*> dynamic_records;  // Track dynamically-created records for cleanup
+		RR *rrNs = nullptr;
+		
+		// Search the zone (ACL longest-match already applied in zone_authority)
+		QueryProcessor::findMatches(qrr, *lookup.zone, matches, &rrNs, &dynamic_records);
+		
+		// Clone matches and add to answer section
+		for (vector<RR*>::const_iterator match_iter = matches.begin(); 
+		     match_iter != matches.end(); ++match_iter)
 		{
-			vector<RR*> matches;
-			RR *rrNs = nullptr;
-			
-			// Search the zone (ACL longest-match already applied in zone_authority)
-			QueryProcessor::findMatches(qrr, *lookup.zone, matches, &rrNs);
-			
-			// Clone matches and add to answer section
-			for (vector<RR*>::const_iterator match_iter = matches.begin(); 
-			     match_iter != matches.end(); ++match_iter)
-			{
-				RR *arr = (*match_iter)->clone();
-				arr->query = false;
-				arr->ttl = 10 * 60; // 10 minutes
-				reply->an.push_back(arr);
-			}
-			
-			if (reply->an.size() == 0 && rrNs != nullptr) {
-				RR *arr = rrNs->clone();
-				arr->query = false;
-				arr->ttl = 10 * 60; // 10 minutes
-				reply->ns.push_back(arr);
-				reply->authoritative = true;
-			}
+			RR *arr = (*match_iter)->clone();
+			arr->query = false;
+			arr->ttl = 10 * 60; // 10 minutes
+			reply->an.push_back(arr);
 		}
+		
+		// Clean up dynamically-created records (from DYNAMIC RR expansion)
+		for (vector<RR*>::iterator it = dynamic_records.begin(); 
+		     it != dynamic_records.end(); ++it)
+		{
+			delete *it;
+		}
+		
+		if (reply->an.size() == 0 && rrNs != nullptr) {
+			RR *arr = rrNs->clone();
+			arr->query = false;
+			arr->ttl = 10 * 60; // 10 minutes
+			reply->ns.push_back(arr);
+			reply->authoritative = true;
+		}
+	}
 		
 		// Add EDNS(0) support to response if client supports it
 		reply->copyEDNS(request);

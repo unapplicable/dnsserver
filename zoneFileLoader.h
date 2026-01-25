@@ -20,6 +20,7 @@ private:
 	static void handleACL(const std::vector<std::string>& tokens, Zone* parent, Zone*& current);
 	static void handleAutoSave(const std::vector<std::string>& tokens, Zone* parent);
 	static void handleTSIG(const std::vector<std::string>& tokens, Zone* parent);
+	static void handleDynamic(const std::vector<std::string>& tokens, Zone* current);
 	static void handleResourceRecord(const std::vector<std::string>& tokens, Zone* current, std::string& previousName);
 };
 #endif

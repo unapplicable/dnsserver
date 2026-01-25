@@ -33,6 +33,7 @@ SERVER_SOURCES = dnsserver.cpp message.cpp rr.cpp acl.cpp zoneFileLoader.cpp zon
                  update_processor.cpp query_processor.cpp \
                  rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                  rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp \
+                 rrdynamic.cpp \
                  tsig.cpp
 
 TEST_UPDATE_SOURCES = test_dns_update.cpp message.cpp rr.cpp acl.cpp zoneFileLoader.cpp \
@@ -40,70 +41,72 @@ TEST_UPDATE_SOURCES = test_dns_update.cpp message.cpp rr.cpp acl.cpp zoneFileLoa
                       update_processor.cpp query_processor.cpp \
                       rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                       rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp \
+                      rrdynamic.cpp \
                       tsig.cpp
 
 TEST_QUERY_SOURCES = test_query_processor.cpp message.cpp acl.cpp zoneFileLoader.cpp zoneFileSaver.cpp zone.cpp \
                      rr.cpp rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                     rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp tsig.cpp
+                     rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp rrdynamic.cpp tsig.cpp
 
 TEST_RR_SOURCES = test_rr_types.cpp message.cpp rr.cpp acl.cpp zoneFileLoader.cpp \
                   zoneFileSaver.cpp zone.cpp zone_authority.cpp \
                   update_processor.cpp query_processor.cpp \
                   rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                   rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp \
+                  rrdynamic.cpp \
                   tsig.cpp
 
 TEST_EDNS_SOURCES = test_edns.cpp message.cpp rr.cpp rropt.cpp \
                     rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                    rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rrtsig.cpp tsig.cpp
+                    rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rrtsig.cpp rrdynamic.cpp tsig.cpp
 
 TEST_TSIG_SOURCES = test_tsig.cpp tsig.cpp rrtsig.cpp rr.cpp acl.cpp \
                     message.cpp zone.cpp zoneFileLoader.cpp zoneFileSaver.cpp zone_authority.cpp \
                     rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                    rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp \
+                    rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrdynamic.cpp \
                     update_processor.cpp query_processor.cpp
 
 TEST_ACL_SOURCES = test_acl.cpp acl.cpp zone.cpp zoneFileLoader.cpp zoneFileSaver.cpp \
                    rr.cpp tsig.cpp rrtsig.cpp message.cpp zone_authority.cpp \
                    rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                   rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp \
+                   rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrdynamic.cpp \
                    update_processor.cpp query_processor.cpp
 
 TEST_RR_ROUNDTRIP_SOURCES = test_rr_roundtrip.cpp message.cpp rr.cpp acl.cpp zoneFileLoader.cpp \
                             zoneFileSaver.cpp zone.cpp zone_authority.cpp \
                             rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                            rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp \
+                            rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp rrdynamic.cpp \
                             tsig.cpp update_processor.cpp query_processor.cpp
 
 TEST_ZONE_ROUNDTRIP_SOURCES = test_zone_roundtrip.cpp message.cpp rr.cpp acl.cpp zoneFileLoader.cpp \
                               zoneFileSaver.cpp zone.cpp zone_authority.cpp \
                               rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                              rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp \
+                              rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp rrdynamic.cpp \
                               tsig.cpp update_processor.cpp query_processor.cpp
 
 TEST_TSIG_HMAC_SOURCES = test_tsig_hmac.cpp tsig.cpp rrtsig.cpp rr.cpp message.cpp \
                         rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                        rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp
+                        rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrdynamic.cpp
 
 TEST_ZONE_MATCHING_SOURCES = test_zone_matching.cpp zone.cpp zone_authority.cpp zoneFileLoader.cpp zoneFileSaver.cpp \
                              rr.cpp acl.cpp tsig.cpp rrtsig.cpp message.cpp \
                              rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                             rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp
+                             rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrdynamic.cpp
 
 TEST_ACL_QUERY_SOURCES = test_acl_query.cpp query_processor.cpp zone.cpp zoneFileLoader.cpp zoneFileSaver.cpp \
                          acl.cpp zone_authority.cpp rr.cpp tsig.cpp rrtsig.cpp message.cpp \
                          rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                         rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp update_processor.cpp
+                         rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrdynamic.cpp update_processor.cpp
 
 TEST_ACL_UNAUTHORIZED_SOURCES = test_acl_unauthorized.cpp zone_authority.cpp zone.cpp zoneFileLoader.cpp zoneFileSaver.cpp \
                                 acl.cpp rr.cpp tsig.cpp rrtsig.cpp message.cpp query_processor.cpp \
                                 rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                                rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp update_processor.cpp
+                                rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrdynamic.cpp update_processor.cpp
 
 TEST_ACL_LONGEST_MATCH_SOURCES = test_acl_longest_match.cpp acl.cpp zone.cpp zoneFileLoader.cpp zoneFileSaver.cpp \
                                  rr.cpp tsig.cpp rrtsig.cpp message.cpp zone_authority.cpp \
                                  rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
-                                 rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp \
+                                 rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrdynamic.cpp \
                                  update_processor.cpp query_processor.cpp
 
 # Object files
@@ -294,10 +297,11 @@ $(BUILD_DIR)/test_acl_longest_%.o: %.cpp | $(BUILD_DIR)
 # Integration tests
 test-integration: $(SERVER_BIN)
 	@echo "Running integration tests..."
-	@chmod +x test_update.sh test_wildcard_simple.sh test_tsig.sh
+	@chmod +x test_update.sh test_wildcard_simple.sh test_tsig.sh test_dynamic.sh
 	./test_update.sh
 	./test_wildcard_simple.sh
 	./test_tsig.sh
+	./test_dynamic.sh
 
 # Full test suite
 test-all: test test-integration
