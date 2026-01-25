@@ -25,6 +25,11 @@ public:
 
 	bool unpack(char *data, unsigned int len, unsigned int& offset);
 	void pack(char *data, unsigned int len, unsigned int& offset) const;
+	
+	// EDNS(0) helper methods
+	RR* getOPT() const;  // Get OPT record from additional section (if any)
+	void copyEDNS(const Message* request);  // Copy EDNS from request to response
+	
 	Message() 
 	{
 	}

@@ -11,6 +11,7 @@
 #include "rra.h"
 #include "rrcert.h"
 #include "rrdhcid.h"
+#include "rropt.h"
 #include "rrtsig.h"
 
 #include <cstring>
@@ -256,6 +257,9 @@ RR* RR::createByType(RRType type)
 
 		case DHCID:
 			return new RRDHCID();
+
+		case OPT:
+			return new RROPT();
 
 		case TSIG:
 			return new RRTSIG();

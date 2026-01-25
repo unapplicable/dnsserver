@@ -1,5 +1,6 @@
 #include "message.h"
 #include "socket.h"
+#include "rropt.h"
 
 std::ostream& operator <<(std::ostream& os, const Message& m)
 {
@@ -182,4 +183,49 @@ std::ostream& operator <<(std::ostream& os, const Message::Opcode o)
 std::ostream& operator <<(std::ostream& os, const Message::RCode rc)
 {
 	return os << Message::RCodeToString(rc);	
+}
+
+// EDNS(0) helper methods
+RR* Message::getOPT() const
+{
+	// OPT record should be in additional section
+	for (std::vector<RR*>::const_iterator it = ar.begin(); it != ar.end(); ++it)
+	{
+		if ((*it)->type == RR::OPT)
+			return *it;
+	}
+	return NULL;
+}
+
+void Message::copyEDNS(const Message* request)
+{
+	// Check if request has EDNS(0)
+	RR* request_opt = request->getOPT();
+	if (!request_opt)
+		return;  // No EDNS in request, don't add to response
+	
+	RROPT* req_opt = dynamic_cast<RROPT*>(request_opt);
+	if (!req_opt)
+		return;
+	
+	// Create response OPT record
+	RROPT* resp_opt = new RROPT();
+	
+	// Use the smaller of our max (4096) and client's advertised size
+	resp_opt->udp_payload_size = req_opt->udp_payload_size < 4096 
+		? req_opt->udp_payload_size : 4096;
+	
+	// Version 0
+	resp_opt->version = 0;
+	
+	// Clear DO flag and other flags for now (can be extended later)
+	resp_opt->flags = 0;
+	
+	// Extended RCODE is 0 (no errors beyond normal RCODE)
+	resp_opt->extended_rcode = 0;
+	
+	resp_opt->syncFields();
+	
+	// Add to additional section
+	ar.push_back(resp_opt);
 }

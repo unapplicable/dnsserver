@@ -110,6 +110,9 @@ void handleVersionBind(SOCKET s, SOCKADDR_STORAGE* addr, int addrlen, Message* r
 		arr->rdata = version_text;
 		reply->an.push_back(arr);
 		
+		// Add EDNS(0) support to response if client supports it
+		reply->copyEDNS(request);
+		
 		cout << *reply << flush;
 		
 		char response[0x10000];
@@ -202,6 +205,9 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 				reply->authoritative = true;
 			}
 		}
+		
+		// Add EDNS(0) support to response if client supports it
+		reply->copyEDNS(request);
 		
 		cout << *reply << flush;
 		
@@ -322,6 +328,9 @@ void handleUpdate(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *ad
 send_response:
 		if (zone_rr)
 			reply->qd.push_back(zone_rr->clone());
+		
+		// Add EDNS(0) support to response if client supports it
+		reply->copyEDNS(request);
 		
 		char packet[0x10000] = {};
 		unsigned int packetsize = 0;
