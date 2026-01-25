@@ -353,8 +353,11 @@ EOF
     result_a=$(query_record "$hostname" A)
     result_dhcid=$(query_record "$hostname" DHCID)
     
-    if [ "$result_a" == "$ip" ] && [ -n "$result_dhcid" ]; then
-        pass "Add DHCID record: A and DHCID records added"
+    # Verify the DHCID record matches what we sent (base64 should be preserved in zone file roundtrip)
+    if [ "$result_a" == "$ip" ] && [ "$result_dhcid" == "$dhcid" ]; then
+        pass "Add DHCID record: A and DHCID records added and DHCID matches"
+    elif [ "$result_a" == "$ip" ] && [ -n "$result_dhcid" ]; then
+        fail "Add DHCID record: A and DHCID added but DHCID value mismatch (got: $result_dhcid, expected: $dhcid)"
     elif [ "$result_a" == "$ip" ]; then
         fail "Add DHCID record: A record added but DHCID missing"
     else

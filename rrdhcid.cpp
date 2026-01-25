@@ -1,5 +1,6 @@
 #include "socket.h"
 #include "rrdhcid.h"
+#include "tsig.h"
 #include <sstream>
 #include <iomanip>
 
@@ -18,7 +19,8 @@ bool RRDHCID::unpack(char* data, unsigned int len, unsigned int& offset, bool is
 
 std::ostream& RRDHCID::dumpContents(std::ostream& os) const
 {
-	os << identifier;
+	// DHCID is stored as binary data internally, encode to base64 for zone file
+	os << TSIG::base64Encode(identifier);
 	return os;
 }
 
@@ -26,7 +28,8 @@ void RRDHCID::fromStringContents(const std::vector<std::string>& tokens, const s
 {
 	if (tokens.size() > 0)
 	{
-		identifier = tokens[0];
+		// DHCID in zone files is base64-encoded, decode it to binary
+		identifier = TSIG::base64Decode(tokens[0]);
 		rdata = identifier;
 	}
 }

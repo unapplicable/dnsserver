@@ -691,6 +691,58 @@ TEST_CASE("RRDHCID: Unpack from network", "[rr][dhcid][network]")
     delete rr;
 }
 
+TEST_CASE("RRDHCID: Zone file roundtrip with base64 encoding", "[rr][dhcid][zonefile][roundtrip]")
+{
+    // Test with a realistic base64-encoded DHCID
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN example.com.");
+    zoneData.push_back("client1 IN DHCID AAIBY2/AuCccgoJbsaxcQc9TUapptP69lOjxfNuVAA2kjEA=");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    
+    REQUIRE(zones.size() == 1);
+    REQUIRE(zones[0]->getAllRecords().size() == 1);
+    
+    RRDHCID* dhcid1 = dynamic_cast<RRDHCID*>(zones[0]->getAllRecords()[0]);
+    REQUIRE(dhcid1 != nullptr);
+    
+    // Verify the identifier is binary (decoded from base64)
+    CHECK(dhcid1->identifier.length() == 35);  // base64 "AAIBY...EA=" decodes to 35 bytes
+    CHECK(dhcid1->identifier == dhcid1->rdata);
+    
+    // Now dump to zone file format
+    std::ostringstream oss;
+    dhcid1->dumpContents(oss);
+    std::string dumped = oss.str();
+    
+    // Should be base64-encoded
+    CHECK(dumped == "AAIBY2/AuCccgoJbsaxcQc9TUapptP69lOjxfNuVAA2kjEA=");
+    
+    // Parse the dumped content back
+    t_data zoneData2;
+    zoneData2.push_back("$ORIGIN example.com.");
+    zoneData2.push_back("client2 IN DHCID " + dumped);
+    
+    t_zones zones2;
+    ZoneFileLoader::load(zoneData2, zones2);
+    
+    REQUIRE(zones2.size() == 1);
+    REQUIRE(zones2[0]->getAllRecords().size() == 1);
+    
+    RRDHCID* dhcid2 = dynamic_cast<RRDHCID*>(zones2[0]->getAllRecords()[0]);
+    REQUIRE(dhcid2 != nullptr);
+    
+    // Verify roundtrip: both should have identical binary data
+    CHECK(dhcid2->identifier.length() == dhcid1->identifier.length());
+    CHECK(dhcid2->identifier == dhcid1->identifier);
+    CHECK(dhcid2->rdata == dhcid1->rdata);
+    
+    // Clean up
+    for (Zone* z : zones) delete z;
+    for (Zone* z : zones2) delete z;
+}
+
 // ===== Test CERT Records =====
 
 TEST_CASE("RRCERT: Parse from zone file", "[rr][cert][zonefile]")
