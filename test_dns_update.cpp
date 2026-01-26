@@ -7,6 +7,11 @@
 #include "rr.h"
 #include "rrdhcid.h"
 #include "rra.h"
+#include "rrptr.h"
+#include "rrcname.h"
+#include "rrns.h"
+#include "rrmx.h"
+#include "rrsoa.h"
 #include "zoneFileLoader.h"
 #include "zoneFileSaver.h"
 #include "zone.h"
@@ -1806,4 +1811,313 @@ TEST_CASE("DNS response query flag must be false", "[query][flags]")
     // Response MUST have query flag set to false after round-trip
     CHECK(received_response.query == false);
     CHECK(received_response.id == query.id);
+}
+
+// Test case for DNS UPDATE with PTR record with RDLEN=0
+// This reproduces the bug: "Offset out of bounds - Reading beyond packet boundary"
+// Bug: PTR::unpack() tries to unpackName from rdata even when rdlen=0
+// Fix: Check rdlen before attempting to unpack name from rdata
+TEST_CASE("DNS UPDATE with PTR record RDLEN=0", "[update][ptr][rdlen0]")
+{
+    // Actual packet from logs that caused the error:
+    // Jan 26 03:17:59 changwang dnsserver[1809576]: [UNPACK_ERROR] Failed to unpack RR in section AUTHORITY/UPDATE (index 0/1)
+    // Jan 26 03:17:59 changwang dnsserver[1809576]: [UNPACK_ERROR] RR name: 32.1.222.10.in-addr.arpa, type: PTR, offset: 44/54
+    // Jan 26 03:17:59 changwang dnsserver[1809576]: [UNPACK_ERROR] Exception: DNS Parse Error: Offset out of bounds - Reading beyond packet boundary (offset=54, len=54)
+    
+    unsigned char packet_data[] = {
+        0x2c, 0x25, 0x28, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,  // Header: ID=0x2c25, UPDATE, ZOCOUNT=1, PRCOUNT=0, UPCOUNT=1, ADCOUNT=0
+        0x01, 0x31, 0x03, 0x32, 0x32, 0x32, 0x02, 0x31, 0x30, 0x07, 0x69, 0x6e,  // Zone: 1.222.10.in-
+        0x2d, 0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70, 0x61, 0x00, 0x00,  // addr.arpa. SOA
+        0x06, 0x00, 0x01,                                                          // IN
+        0x02, 0x33, 0x32, 0xc0, 0x0c,                                              // Update: 32.<ptr to offset 12>
+        0x00, 0x0c, 0x00, 0xff,                                                    // PTR ANY
+        0x00, 0x00, 0x00, 0x00,                                                    // TTL=0
+        0x00, 0x00                                                                 // RDLEN=0 (THIS IS THE KEY!)
+    };
+    
+    char packet[54];
+    memcpy(packet, packet_data, 54);
+    
+    // Try to unpack the message
+    Message msg;
+    unsigned int offset = 0;
+    
+    // This should NOT throw an exception or fail
+    bool result = msg.unpack(packet, 54, offset);
+    
+    // The message should unpack successfully
+    CHECK(result == true);
+    CHECK(msg.opcode == Message::UPDATE);
+    CHECK(msg.qd.size() == 1);  // Zone section
+    CHECK(msg.ns.size() == 1);  // Update section
+    
+    // Check the zone record
+    CHECK(msg.qd[0]->name == "1.222.10.in-addr.arpa.");
+    CHECK(msg.qd[0]->type == RR::SOA);
+    
+    // Check the update record - PTR with RDLEN=0
+    CHECK(msg.ns[0]->name == "32.1.222.10.in-addr.arpa.");
+    CHECK(msg.ns[0]->type == RR::PTR);
+    CHECK(msg.ns[0]->rrclass == RR::CLASSANY);
+    CHECK(msg.ns[0]->ttl == 0);
+    CHECK(msg.ns[0]->rdlen == 0);
+    
+    // For PTR with rdlen=0, rdata should be empty
+    RRPTR* ptr = dynamic_cast<RRPTR*>(msg.ns[0]);
+    CHECK(ptr != nullptr);
+    CHECK(ptr->rdata == "");  // Empty rdata for "delete all PTR records for this name"
+}
+
+// Test case for CNAME record with RDLEN=0
+// This tests the fix for CNAME unpacking when rdlen=0
+TEST_CASE("DNS UPDATE with CNAME record RDLEN=0", "[update][cname][rdlen0]")
+{
+    // Construct a minimal UPDATE packet with CNAME RDLEN=0
+    unsigned char packet_data[100];
+    unsigned int offset = 0;
+    
+    // Header: ID=0x1234, UPDATE opcode, ZOCOUNT=1, UPCOUNT=1
+    packet_data[offset++] = 0x12;
+    packet_data[offset++] = 0x34;
+    packet_data[offset++] = 0x28;  // Flags: QR=0, Opcode=5 (UPDATE), AA=1
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;  // ZOCOUNT
+    packet_data[offset++] = 0x01;  // = 1
+    packet_data[offset++] = 0x00;  // PRCOUNT
+    packet_data[offset++] = 0x00;  // = 0
+    packet_data[offset++] = 0x00;  // UPCOUNT
+    packet_data[offset++] = 0x01;  // = 1
+    packet_data[offset++] = 0x00;  // ADCOUNT
+    packet_data[offset++] = 0x00;  // = 0
+    
+    // Zone section: example.com SOA IN
+    packet_data[offset++] = 7;
+    memcpy(&packet_data[offset], "example", 7); offset += 7;
+    packet_data[offset++] = 3;
+    memcpy(&packet_data[offset], "com", 3); offset += 3;
+    packet_data[offset++] = 0;  // Terminator
+    packet_data[offset++] = 0x00;  // Type = SOA
+    packet_data[offset++] = 0x06;
+    packet_data[offset++] = 0x00;  // Class = IN
+    packet_data[offset++] = 0x01;
+    
+    // Update section: alias.example.com CNAME ANY 0 (RDLEN=0)
+    packet_data[offset++] = 5;
+    memcpy(&packet_data[offset], "alias", 5); offset += 5;
+    packet_data[offset++] = 0xC0;  // Pointer to offset 12
+    packet_data[offset++] = 0x0C;
+    packet_data[offset++] = 0x00;  // Type = CNAME (5)
+    packet_data[offset++] = 0x05;
+    packet_data[offset++] = 0x00;  // Class = ANY
+    packet_data[offset++] = 0xFF;
+    packet_data[offset++] = 0x00;  // TTL = 0
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;  // RDLEN = 0
+    packet_data[offset++] = 0x00;
+    
+    unsigned int packet_len = offset;
+    
+    Message msg;
+    unsigned int unpack_offset = 0;
+    bool result = msg.unpack(reinterpret_cast<char*>(packet_data), packet_len, unpack_offset);
+    
+    CHECK(result == true);
+    CHECK(msg.opcode == Message::UPDATE);
+    CHECK(msg.ns.size() == 1);
+    CHECK(msg.ns[0]->type == RR::CNAME);
+    CHECK(msg.ns[0]->rdlen == 0);
+    
+    RRCNAME* cname = dynamic_cast<RRCNAME*>(msg.ns[0]);
+    CHECK(cname != nullptr);
+    CHECK(cname->rdata == "");
+}
+
+// Test case for NS record with RDLEN=0
+TEST_CASE("DNS UPDATE with NS record RDLEN=0", "[update][ns][rdlen0]")
+{
+    unsigned char packet_data[100];
+    unsigned int offset = 0;
+    
+    // Header
+    packet_data[offset++] = 0x12;
+    packet_data[offset++] = 0x35;
+    packet_data[offset++] = 0x28;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x01;  // ZOCOUNT = 1
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x01;  // UPCOUNT = 1
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    
+    // Zone: example.com SOA IN
+    packet_data[offset++] = 7;
+    memcpy(&packet_data[offset], "example", 7); offset += 7;
+    packet_data[offset++] = 3;
+    memcpy(&packet_data[offset], "com", 3); offset += 3;
+    packet_data[offset++] = 0;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x06;  // SOA
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x01;  // IN
+    
+    // Update: sub.example.com NS ANY 0 (RDLEN=0)
+    packet_data[offset++] = 3;
+    memcpy(&packet_data[offset], "sub", 3); offset += 3;
+    packet_data[offset++] = 0xC0;  // Pointer
+    packet_data[offset++] = 0x0C;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x02;  // NS
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0xFF;  // ANY
+    packet_data[offset++] = 0x00;  // TTL
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;  // RDLEN = 0
+    packet_data[offset++] = 0x00;
+    
+    Message msg;
+    unsigned int unpack_offset = 0;
+    bool result = msg.unpack(reinterpret_cast<char*>(packet_data), offset, unpack_offset);
+    
+    CHECK(result == true);
+    CHECK(msg.ns.size() == 1);
+    CHECK(msg.ns[0]->type == RR::NS);
+    CHECK(msg.ns[0]->rdlen == 0);
+    
+    RRNS* ns = dynamic_cast<RRNS*>(msg.ns[0]);
+    CHECK(ns != nullptr);
+    CHECK(ns->rdata == "");
+}
+
+// Test case for MX record with RDLEN=0
+TEST_CASE("DNS UPDATE with MX record RDLEN=0", "[update][mx][rdlen0]")
+{
+    unsigned char packet_data[100];
+    unsigned int offset = 0;
+    
+    // Header
+    packet_data[offset++] = 0x12;
+    packet_data[offset++] = 0x36;
+    packet_data[offset++] = 0x28;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x01;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x01;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    
+    // Zone
+    packet_data[offset++] = 7;
+    memcpy(&packet_data[offset], "example", 7); offset += 7;
+    packet_data[offset++] = 3;
+    memcpy(&packet_data[offset], "com", 3); offset += 3;
+    packet_data[offset++] = 0;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x06;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x01;
+    
+    // Update: mail.example.com MX ANY 0 (RDLEN=0)
+    packet_data[offset++] = 4;
+    memcpy(&packet_data[offset], "mail", 4); offset += 4;
+    packet_data[offset++] = 0xC0;
+    packet_data[offset++] = 0x0C;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x0F;  // MX
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0xFF;  // ANY
+    packet_data[offset++] = 0x00;  // TTL
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;  // RDLEN = 0
+    packet_data[offset++] = 0x00;
+    
+    Message msg;
+    unsigned int unpack_offset = 0;
+    bool result = msg.unpack(reinterpret_cast<char*>(packet_data), offset, unpack_offset);
+    
+    CHECK(result == true);
+    CHECK(msg.ns.size() == 1);
+    CHECK(msg.ns[0]->type == RR::MX);
+    CHECK(msg.ns[0]->rdlen == 0);
+    
+    RRMX* mx = dynamic_cast<RRMX*>(msg.ns[0]);
+    CHECK(mx != nullptr);
+    CHECK(mx->pref == 0);
+    CHECK(mx->rdata == "");
+}
+
+// Test case for SOA record with RDLEN=0
+TEST_CASE("DNS UPDATE with SOA record RDLEN=0", "[update][soa][rdlen0]")
+{
+    unsigned char packet_data[100];
+    unsigned int offset = 0;
+    
+    // Header
+    packet_data[offset++] = 0x12;
+    packet_data[offset++] = 0x37;
+    packet_data[offset++] = 0x28;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x01;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x01;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    
+    // Zone
+    packet_data[offset++] = 7;
+    memcpy(&packet_data[offset], "example", 7); offset += 7;
+    packet_data[offset++] = 3;
+    memcpy(&packet_data[offset], "com", 3); offset += 3;
+    packet_data[offset++] = 0;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x06;  // SOA
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x01;  // IN
+    
+    // Update: example.com SOA ANY 0 (RDLEN=0)
+    packet_data[offset++] = 0xC0;  // Pointer to zone name
+    packet_data[offset++] = 0x0C;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x06;  // SOA
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0xFF;  // ANY
+    packet_data[offset++] = 0x00;  // TTL
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;
+    packet_data[offset++] = 0x00;  // RDLEN = 0
+    packet_data[offset++] = 0x00;
+    
+    Message msg;
+    unsigned int unpack_offset = 0;
+    bool result = msg.unpack(reinterpret_cast<char*>(packet_data), offset, unpack_offset);
+    
+    CHECK(result == true);
+    CHECK(msg.ns.size() == 1);
+    CHECK(msg.ns[0]->type == RR::SOA);
+    CHECK(msg.ns[0]->rdlen == 0);
+    
+    RRSoa* soa = dynamic_cast<RRSoa*>(msg.ns[0]);
+    CHECK(soa != nullptr);
+    CHECK(soa->ns == "");
+    CHECK(soa->mail == "");
+    CHECK(soa->serial == 0);
+    CHECK(soa->refresh == 0);
+    CHECK(soa->retry == 0);
+    CHECK(soa->expire == 0);
+    CHECK(soa->minttl == 0);
 }

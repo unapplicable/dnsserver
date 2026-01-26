@@ -24,6 +24,14 @@ bool RRCNAME::unpack(char* data, unsigned int len, unsigned int& offset, bool is
 	if (isQuery)
 		return true;
 	
+	// Handle empty RDATA (rdlen=0) - valid for DNS UPDATE operations
+	// RFC 2136: empty RDATA in UPDATE section means "delete all RRsets from a name"
+	if (rdlen == 0)
+	{
+		rdata = "";
+		return true;
+	}
+	
 	unsigned int rdataOffset = offset - rdlen;
 	rdata = unpackNameWithDot(data, len, rdataOffset);
 	return true;

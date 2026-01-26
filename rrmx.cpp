@@ -25,6 +25,15 @@ bool RRMX::unpack(char* data, unsigned int len, unsigned int& offset, bool isQue
 	if (isQuery)
 		return true;
 	
+	// Handle empty RDATA (rdlen=0) - valid for DNS UPDATE operations
+	// RFC 2136: empty RDATA in UPDATE section means "delete all RRsets from a name"
+	if (rdlen == 0)
+	{
+		pref = 0;
+		rdata = "";
+		return true;
+	}
+	
 	unsigned int rdataOffset = offset - rdlen;
 	unsigned int rdataEnd = offset;
 	

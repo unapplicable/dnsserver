@@ -446,6 +446,242 @@ EOF
 }
 
 # ============================================================
+# TEST 9: UPDATE - Delete All PTR Records (RDLEN=0)
+# ============================================================
+test_delete_all_ptr_rdlen0() {
+    log "TEST 9: Delete all PTR records using RDLEN=0"
+    local hostname="ptr.$ZONE"
+    local target="target.$ZONE"
+    
+    if [ $NSUPDATE_AVAILABLE -eq 0 ]; then
+        skip "Delete all PTR with RDLEN=0 (nsupdate not available)"
+        return
+    fi
+    
+    # Add a PTR record
+    cat <<EOF | nsupdate 2>&1 | tee -a "$LOGFILE"
+server $SERVER $PORT
+zone $ZONE
+update add $hostname 300 PTR $target
+send
+EOF
+    
+    sleep 1
+    
+    # Verify it was added
+    if ! record_exists "$hostname" PTR; then
+        skip "Delete all PTR (RDLEN=0): Setup failed - PTR not supported or not added"
+        return
+    fi
+    
+    # Delete all PTR records (RDLEN=0)
+    # This creates an UPDATE with RDLEN=0, which was the bug we fixed
+    cat <<EOF | nsupdate 2>&1 | tee -a "$LOGFILE"
+server $SERVER $PORT
+zone $ZONE
+update delete $hostname PTR
+send
+EOF
+    
+    sleep 1
+    
+    # Verify deletion
+    if ! record_exists "$hostname" PTR; then
+        pass "Delete all PTR records (RDLEN=0): Successfully deleted"
+    else
+        fail "Delete all PTR records (RDLEN=0): Records still exist"
+    fi
+}
+
+# ============================================================
+# TEST 10: UPDATE - Delete All CNAME Records (RDLEN=0)
+# ============================================================
+test_delete_all_cname_rdlen0() {
+    log "TEST 10: Delete all CNAME records using RDLEN=0"
+    local hostname="test10.$ZONE"
+    local target="target.$ZONE"
+    
+    if [ $NSUPDATE_AVAILABLE -eq 0 ]; then
+        skip "Delete all CNAME with RDLEN=0 (nsupdate not available)"
+        return
+    fi
+    
+    # Add a CNAME record
+    cat <<EOF | nsupdate 2>&1 | tee -a "$LOGFILE"
+server $SERVER $PORT
+zone $ZONE
+update add $hostname 300 CNAME $target
+send
+EOF
+    
+    sleep 1
+    
+    # Verify it was added
+    if ! record_exists "$hostname" CNAME; then
+        fail "Delete all CNAME (RDLEN=0): Setup failed - CNAME not added"
+        return
+    fi
+    
+    # Delete all CNAME records (RDLEN=0)
+    cat <<EOF | nsupdate 2>&1 | tee -a "$LOGFILE"
+server $SERVER $PORT
+zone $ZONE
+update delete $hostname CNAME
+send
+EOF
+    
+    sleep 1
+    
+    # Verify deletion
+    if ! record_exists "$hostname" CNAME; then
+        pass "Delete all CNAME records (RDLEN=0): Successfully deleted"
+    else
+        fail "Delete all CNAME records (RDLEN=0): Records still exist"
+    fi
+}
+
+# ============================================================
+# TEST 11: UPDATE - Delete All NS Records (RDLEN=0)
+# ============================================================
+test_delete_all_ns_rdlen0() {
+    log "TEST 11: Delete all NS records using RDLEN=0"
+    local hostname="sub.$ZONE"
+    local ns1="ns1.$ZONE"
+    local ns2="ns2.$ZONE"
+    
+    if [ $NSUPDATE_AVAILABLE -eq 0 ]; then
+        skip "Delete all NS with RDLEN=0 (nsupdate not available)"
+        return
+    fi
+    
+    # Add NS records for a subdomain
+    cat <<EOF | nsupdate 2>&1 | tee -a "$LOGFILE"
+server $SERVER $PORT
+zone $ZONE
+update add $hostname 300 NS $ns1
+update add $hostname 300 NS $ns2
+send
+EOF
+    
+    sleep 1
+    
+    # Verify records exist
+    if ! record_exists "$hostname" NS; then
+        fail "Delete all NS (RDLEN=0): Setup failed - NS not added"
+        return
+    fi
+    
+    # Delete all NS records (RDLEN=0)
+    cat <<EOF | nsupdate 2>&1 | tee -a "$LOGFILE"
+server $SERVER $PORT
+zone $ZONE
+update delete $hostname NS
+send
+EOF
+    
+    sleep 1
+    
+    # Verify deletion
+    if ! record_exists "$hostname" NS; then
+        pass "Delete all NS records (RDLEN=0): Successfully deleted"
+    else
+        fail "Delete all NS records (RDLEN=0): Records still exist"
+    fi
+}
+
+# ============================================================
+# TEST 12: UPDATE - Delete All MX Records (RDLEN=0)
+# ============================================================
+test_delete_all_mx_rdlen0() {
+    log "TEST 12: Delete all MX records using RDLEN=0"
+    local hostname="mail.$ZONE"
+    local mx1="mx1.$ZONE"
+    local mx2="mx2.$ZONE"
+    
+    if [ $NSUPDATE_AVAILABLE -eq 0 ]; then
+        skip "Delete all MX with RDLEN=0 (nsupdate not available)"
+        return
+    fi
+    
+    # Add multiple MX records
+    cat <<EOF | nsupdate 2>&1 | tee -a "$LOGFILE"
+server $SERVER $PORT
+zone $ZONE
+update add $hostname 300 MX 10 $mx1
+update add $hostname 300 MX 20 $mx2
+send
+EOF
+    
+    sleep 1
+    
+    # Verify records exist
+    if ! record_exists "$hostname" MX; then
+        fail "Delete all MX (RDLEN=0): Setup failed - MX not added"
+        return
+    fi
+    
+    # Delete all MX records (RDLEN=0)
+    cat <<EOF | nsupdate 2>&1 | tee -a "$LOGFILE"
+server $SERVER $PORT
+zone $ZONE
+update delete $hostname MX
+send
+EOF
+    
+    sleep 1
+    
+    # Verify deletion
+    if ! record_exists "$hostname" MX; then
+        pass "Delete all MX records (RDLEN=0): Successfully deleted"
+    else
+        fail "Delete all MX records (RDLEN=0): Records still exist"
+    fi
+}
+
+# ============================================================
+# TEST 13: UPDATE - Prerequisite with RDLEN=0 (Name Not In Use)
+# ============================================================
+test_prereq_nxdomain_rdlen0() {
+    log "TEST 13: Prerequisite NXDOMAIN (name not in use) - RDLEN=0"
+    local hostname="test13.$ZONE"
+    local ip="10.0.0.13"
+    
+    if [ $NSUPDATE_AVAILABLE -eq 0 ]; then
+        skip "Prerequisite NXDOMAIN with RDLEN=0 (nsupdate not available)"
+        return
+    fi
+    
+    # Ensure the name doesn't exist first
+    cat <<EOF | nsupdate 2>&1 | tee -a "$LOGFILE"
+server $SERVER $PORT
+zone $ZONE
+update delete $hostname
+send
+EOF
+    
+    sleep 1
+    
+    # Use NXDOMAIN prerequisite (this sends PTR/SOA/etc with RDLEN=0)
+    cat <<EOF | nsupdate -v 2>&1 | tee -a "$LOGFILE"
+server $SERVER $PORT
+zone $ZONE
+prereq nxdomain $hostname
+update add $hostname 300 A $ip
+send
+EOF
+    
+    sleep 1
+    
+    result=$(query_record "$hostname" A)
+    
+    if [ "$result" == "$ip" ]; then
+        pass "Prerequisite NXDOMAIN (RDLEN=0): UPDATE successful"
+    else
+        fail "Prerequisite NXDOMAIN (RDLEN=0): Expected $ip, got '$result'"
+    fi
+}
+
+# ============================================================
 # Run All Tests
 # ============================================================
 
@@ -466,6 +702,11 @@ test_delete_rrset
 test_add_dhcid_record
 test_failed_prerequisite
 test_replace_record
+test_delete_all_ptr_rdlen0
+test_delete_all_cname_rdlen0
+test_delete_all_ns_rdlen0
+test_delete_all_mx_rdlen0
+test_prereq_nxdomain_rdlen0
 
 # Stop the server
 stop_server

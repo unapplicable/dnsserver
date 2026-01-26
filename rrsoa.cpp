@@ -32,6 +32,20 @@ bool RRSoa::unpack(char* data, unsigned int len, unsigned int& offset, bool isQu
 	if (isQuery)
 		return true;
 	
+	// Handle empty RDATA (rdlen=0) - valid for DNS UPDATE operations
+	// RFC 2136: empty RDATA in UPDATE section means "delete all RRsets from a name"
+	if (rdlen == 0)
+	{
+		ns = "";
+		mail = "";
+		serial = 0;
+		refresh = 0;
+		retry = 0;
+		expire = 0;
+		minttl = 0;
+		return true;
+	}
+	
 	unsigned int rdataOffset = offset - rdlen;
 	unsigned int rdataEnd = offset;
 	
