@@ -297,11 +297,14 @@ $(BUILD_DIR)/test_acl_longest_%.o: %.cpp | $(BUILD_DIR)
 # Integration tests
 test-integration: $(SERVER_BIN)
 	@echo "Running integration tests..."
-	@chmod +x test_update.sh test_wildcard_simple.sh test_tsig.sh test_dynamic.sh
+	@chmod +x test_update.sh test_wildcard_simple.sh test_tsig.sh test_dynamic.sh test_autosave_daemon.sh test_sighup.sh test_edns_integration.sh
 	./test_update.sh
 	./test_wildcard_simple.sh
 	./test_tsig.sh
 	./test_dynamic.sh
+	./test_autosave_daemon.sh
+	./test_sighup.sh
+	./test_edns_integration.sh
 
 # Full test suite
 test-all: test test-integration

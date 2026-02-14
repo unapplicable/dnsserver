@@ -179,8 +179,6 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 		reply->rcode = Message::CODENOERROR;
 		reply->recursionavailable = reply->recursiondesired = request->recursiondesired;
 		
-	// Use QueryProcessor to find matching records
-	{
 		vector<RR*> matches;
 		vector<RR*> dynamic_records;  // Track dynamically-created records for cleanup
 		RR *rrNs = nullptr;
@@ -210,9 +208,8 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 			arr->query = false;
 			arr->ttl = 10 * 60; // 10 minutes
 			reply->ns.push_back(arr);
-			reply->authoritative = true;
+			reply->authoritative = false;
 		}
-	}
 		
 		// Add EDNS(0) support to response if client supports it
 		reply->copyEDNS(request);
@@ -728,6 +725,18 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 	if (should_daemonize)
 		daemonize(uid, gid);
 	
+	// Start background save thread (must be after daemonize to run in child process)
+	pthread_t save_thread;
+	if (pthread_create(&save_thread, NULL, zoneSaveThread, &zones) != 0)
+	{
+		cerr << "Warning: Failed to create auto-save thread" << endl;
+	}
+	else
+	{
+		pthread_detach(save_thread);
+		cerr << "Auto-save thread started (checking every 5 minutes)" << endl;
+	}
+	
 	// Signal handlers are installed in main()
 	
 	while (!g_shutdown)
@@ -920,18 +929,6 @@ int main(int argc, char* argv[])
 	{
 		cerr << "Error: No IP addresses specified" << endl;
 		return 1;
-	}
-
-	// Start background save thread
-	pthread_t save_thread;
-	if (pthread_create(&save_thread, NULL, zoneSaveThread, &zones) != 0)
-	{
-		cerr << "Warning: Failed to create auto-save thread" << endl;
-	}
-	else
-	{
-		pthread_detach(save_thread);
-		cerr << "Auto-save thread started (checking every 5 minutes)" << endl;
 	}
 
 	// Install signal handlers
