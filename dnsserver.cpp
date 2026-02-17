@@ -161,6 +161,24 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 		
 		if (!lookup.found)
 		{
+			// Zone not found - return SERVFAIL instead of no response
+			Message *reply = new Message();
+			reply->id = request->id;
+			reply->opcode = Message::QUERY;
+			reply->qd.push_back(qrr->clone());
+			reply->truncation = false;
+			reply->query = false;
+			reply->authoritative = true;
+			reply->rcode = Message::CODESERVERFAILURE;
+			reply->recursionavailable = reply->recursiondesired = request->recursiondesired;
+			reply->copyEDNS(request);
+			
+			char response[0x10000];
+			unsigned int response_len = 0;
+			reply->pack(response, sizeof(response), response_len);
+			
+			send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
+			delete reply;
 			return;
 		}
 		
@@ -202,13 +220,21 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 		{
 			delete *it;
 		}
-		
-		if (reply->an.size() == 0 && rrNs != nullptr) {
-			RR *arr = rrNs->clone();
-			arr->query = false;
-			arr->ttl = 10 * 60; // 10 minutes
-			reply->ns.push_back(arr);
-			reply->authoritative = false;
+
+		// If no answers found, return NXDOMAIN instead of NOERROR with empty answers
+		// This is critical for proper DNS resolution - RFC 2308 requires NXDOMAIN for non-existent names
+		if (reply->an.size() == 0) {
+			if (rrNs != nullptr) {
+				// There's a delegation (NS record), so return NOERROR with authority section
+				RR *arr = rrNs->clone();
+				arr->query = false;
+				arr->ttl = 10 * 60; // 10 minutes
+				reply->ns.push_back(arr);
+				reply->authoritative = false;
+			} else {
+				// No records found - return NXDOMAIN
+				reply->rcode = Message::CODENAMEERROR;
+			}
 		}
 		
 		// Add EDNS(0) support to response if client supports it
