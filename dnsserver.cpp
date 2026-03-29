@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <openssl/opensslv.h>
 #include "socket.h"
+#include "mutex_guard.h"
 
 using namespace std;
 
@@ -344,13 +345,13 @@ void handleUpdate(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *ad
 			cout << "UPDATE: All prerequisites passed" << endl << flush;
 			
 			// CRITICAL SECTION START: Protect all zone modifications
-			pthread_mutex_lock(&g_zone_mutex);
+			MutexGuard<pthread_mutex_t> lock(&g_zone_mutex);
 			
 			// Apply updates using UpdateProcessor
 			string update_error;
 			UpdateProcessor::applyUpdates(request, *target_zone, update_error);
 			
-			pthread_mutex_unlock(&g_zone_mutex);
+			// MutexGuard auto-unlocks on destruction
 			// CRITICAL SECTION END
 			
 			cout << "UPDATE: Success" << endl << flush;
@@ -487,7 +488,7 @@ void* zoneSaveThread(void* arg)
 		sleep(300);
 		
 		// Check all zones for modifications and save if needed
-		pthread_mutex_lock(&g_zone_mutex);
+		MutexGuard<pthread_mutex_t> lock(&g_zone_mutex);
 		
 		for (vector<Zone*>::iterator it = zones->begin(); it != zones->end(); ++it)
 		{
@@ -508,8 +509,7 @@ void* zoneSaveThread(void* arg)
 				}
 			}
 		}
-		
-		pthread_mutex_unlock(&g_zone_mutex);
+		// MutexGuard auto-unlocks when it goes out of scope
 	}
 	
 	return NULL;
@@ -564,9 +564,8 @@ void saveModifiedZonesLocked(vector<Zone*>& zones, const char* prefix)
 
 void saveModifiedZones(vector<Zone*>& zones, const char* prefix = "")
 {
-	pthread_mutex_lock(&g_zone_mutex);
+	MutexGuard<pthread_mutex_t> lock(&g_zone_mutex);
 	saveModifiedZonesLocked(zones, prefix);
-	pthread_mutex_unlock(&g_zone_mutex);
 }
 
 void clearExistingZones(vector<Zone*>& zones)
@@ -638,7 +637,7 @@ void handleReloadRequest(vector<Zone*>& zones, vector<string>& zonefiles)
 	
 	cerr << "[SIGHUP] Received reload signal" << endl;
 	
-	pthread_mutex_lock(&g_zone_mutex);
+	MutexGuard<pthread_mutex_t> lock(&g_zone_mutex);
 	
 	// Save all modified zones before reloading
 	cerr << "[SIGHUP] Saving modified zones..." << endl;
@@ -646,8 +645,7 @@ void handleReloadRequest(vector<Zone*>& zones, vector<string>& zonefiles)
 	
 	// Reload all zones
 	reloadZonesLocked(zones, zonefiles);
-	
-	pthread_mutex_unlock(&g_zone_mutex);
+	// MutexGuard auto-unlocks
 }
 
 
