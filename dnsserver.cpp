@@ -252,6 +252,13 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 				reply->authoritative = false;
 			} else {
 				// No records found - return NXDOMAIN
+				// Per RFC 2308, include SOA record for negative caching
+				vector<RR*> soa_rrs = lookup.zone->findRecordsByName(lookup.zone->name, RR::SOA);
+				if (!soa_rrs.empty()) {
+					RR* soa = soa_rrs[0]->clone();
+					soa->query = false;
+					reply->ns.push_back(soa);
+				}
 				reply->rcode = Message::CODENAMEERROR;
 			}
 		}
