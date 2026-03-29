@@ -499,6 +499,7 @@ void* zoneSaveThread(void* arg)
 				
 				if (ZoneFileSaver::saveToFile(zone, zone->filename))
 				{
+					zone->clearModified();
 					cerr << "[AUTOSAVE] Zone " << zone->name << " saved successfully" << endl;
 				}
 				else
