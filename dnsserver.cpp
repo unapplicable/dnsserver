@@ -933,20 +933,27 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 	
-	// Load all zone files
+	// Load all zone files - continue on error to allow graceful degradation
+	int failed_zones = 0;
 	for (vector<string>::iterator zf_it = zonefiles.begin(); zf_it != zonefiles.end(); ++zf_it)
 	{
 		if (!loadZoneFile(*zf_it, zones))
 		{
-			cerr << "[-] error loading zones from " << *zf_it << ", malformed data" << endl;
-			return 1;
+			cerr << "[-] error loading zones from " << *zf_it << ", skipping..." << endl;
+			failed_zones++;
 		}
 	}
 	
 	if (zones.empty())
 	{
-		cerr << "Error: No zones loaded" << endl;
+		cerr << "Error: No zones loaded successfully" << endl;
 		return 1;
+	}
+	
+	if (failed_zones > 0)
+	{
+		cerr << "Warning: " << failed_zones << " zone file(s) failed to load, " 
+		     << zones.size() << " zone(s) loaded successfully" << endl;
 	}
 	
 	// Check we have IP addresses
