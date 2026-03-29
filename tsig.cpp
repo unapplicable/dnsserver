@@ -3,6 +3,7 @@
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 #include <openssl/buffer.h>
+#include <openssl/crypto.h>
 #include <cstring>
 #include <ctime>
 #include <arpa/inet.h>
@@ -298,8 +299,9 @@ bool TSIG::verify(const Message* msg,
     // Compute expected MAC
     string expected_mac = computeHMAC(key->algorithm, key->decoded_secret, signing_data);
     
-    // Compare MACs
-    if (expected_mac != tsig->mac) {
+    // Compare MACs using constant-time comparison to prevent timing attacks
+    if (expected_mac.length() != tsig->mac.length() ||
+        CRYPTO_memcmp(expected_mac.data(), tsig->mac.data(), expected_mac.length()) != 0) {
         error = "TSIG signature verification failed";
         return false;
     }
