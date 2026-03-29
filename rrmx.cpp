@@ -1,4 +1,5 @@
 #include "socket.h"
+#include "wire.h"
 #include "rrmx.h"
 
 std::ostream& RRMX::dumpContents(std::ostream& os) const
@@ -40,7 +41,7 @@ bool RRMX::unpack(char* data, unsigned int len, unsigned int& offset, bool isQue
 	if (rdataOffset + 2 > rdataEnd)
 		return false;
 	
-	pref = ntohs(*(uint16_t*)&data[rdataOffset]);
+	pref = wire_read_u16(data, rdataOffset);
 	rdataOffset += 2;
 	
 	rdata = unpackNameWithDot(data, len, rdataOffset);
@@ -50,10 +51,10 @@ bool RRMX::unpack(char* data, unsigned int len, unsigned int& offset, bool isQue
 void RRMX::packContents(char* data, unsigned int len, unsigned int& offset)
 {
 	unsigned int oldoffset = offset - 2;
-	(unsigned short&)data[offset] = htons(pref);
+	wire_write_u16(data, offset, pref);
 	offset += 2;
 	packName(data, len, offset, rdata);
 	unsigned int packedrdlen = offset - (oldoffset + 2);
-	(unsigned short&)data[oldoffset] = htons(packedrdlen);
+	wire_write_u16(data, oldoffset, packedrdlen);
 }
 

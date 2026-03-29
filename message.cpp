@@ -1,6 +1,7 @@
 #include "message.h"
 #include "socket.h"
 #include "rropt.h"
+#include "wire.h"
 
 std::ostream& operator <<(std::ostream& os, const Message& m)
 {
@@ -37,13 +38,13 @@ bool Message::unpack(char *data, unsigned int len, unsigned int& offset)
 	if (iter + 1 >= len)
 		return false;
 
-	id = ntohs((unsigned short &)data[iter]);
+	id = wire_read_u16(data, iter);
 	iter += 2;
 
 	if (iter + 1 >= len)
 		return false;
 
-	unsigned short flags = ntohs((unsigned short &)data[iter]);
+	unsigned short flags = wire_read_u16(data, iter);
 	iter += 2;
 
 	// DNS flags after ntohs() on little-endian keep network bit positions
@@ -62,13 +63,13 @@ bool Message::unpack(char *data, unsigned int len, unsigned int& offset)
 
 	unsigned short counts[] = {0, 0, 0, 0};
 
-	counts[0] = ntohs((unsigned short &)data[iter]);
+	counts[0] = wire_read_u16(data, iter);
 	iter += 2;
-	counts[1] = ntohs((unsigned short &)data[iter]);
+	counts[1] = wire_read_u16(data, iter);
 	iter += 2;
-	counts[2] = ntohs((unsigned short &)data[iter]);
+	counts[2] = wire_read_u16(data, iter);
 	iter += 2;
-	counts[3] = ntohs((unsigned short &)data[iter]);
+	counts[3] = wire_read_u16(data, iter);
 	iter += 2;
 
 	for (int rrtype = 0; rrtype < 4; rrtype++)
@@ -85,7 +86,7 @@ bool Message::unpack(char *data, unsigned int len, unsigned int& offset)
 			if (peek_offset + 1 >= len)
 				return false;
 			
-			RR::RRType rr_type = (RR::RRType)ntohs((short &)data[peek_offset]);
+			RR::RRType rr_type = (RR::RRType)wire_read_u16(data, peek_offset);
 			
 			// Create the correct RR subclass based on type
 			RR *r = RR::createByType(rr_type);
@@ -124,7 +125,7 @@ void Message::pack(char *data, unsigned int len, unsigned int& offset) const
 {
 	offset = 0;
 
-	(unsigned short &)data[offset] = htons(id);
+	wire_write_u16(data, offset, id);
 	offset += 2;
 
 	unsigned short flags = 0;
@@ -136,19 +137,19 @@ void Message::pack(char *data, unsigned int len, unsigned int& offset) const
 	flags |= recursionavailable ? 0x0080 : 0;
 	flags |= (rcode & 0x0F);
 	
-	(unsigned short &)data[offset] = htons(flags);
+	wire_write_u16(data, offset, flags);
 	offset += 2;
 
-	(unsigned short &)data[offset] = htons(static_cast<unsigned short>(qd.size()));
+	wire_write_u16(data, offset, static_cast<unsigned short>(qd.size()));
 	offset += 2;
 
-	(unsigned short &)data[offset] = htons(static_cast<unsigned short>(an.size()));
+	wire_write_u16(data, offset, static_cast<unsigned short>(an.size()));
 	offset += 2;
 
-	(unsigned short &)data[offset] = htons(static_cast<unsigned short>(ns.size()));
+	wire_write_u16(data, offset, static_cast<unsigned short>(ns.size()));
 	offset += 2;
 
-	(unsigned short &)data[offset] = htons(static_cast<unsigned short>(ar.size()));
+	wire_write_u16(data, offset, static_cast<unsigned short>(ar.size()));
 	offset += 2;
 
 	for (int rrtype = 0; rrtype < 4; rrtype++)

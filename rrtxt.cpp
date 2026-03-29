@@ -1,4 +1,5 @@
 #include "socket.h"
+#include "wire.h"
 #include "rrtxt.h"
 
 void RRTXT::packContents(char* data, unsigned int /* len */, unsigned int& offset)
@@ -8,7 +9,7 @@ void RRTXT::packContents(char* data, unsigned int /* len */, unsigned int& offse
 	rdata.copy(&data[offset], rdata.length());
 	offset += (unsigned int)rdata.length();
 	unsigned int packedrdlen = offset - (oldoffset + 2);
-	(unsigned short&)data[oldoffset] = htons(packedrdlen);
+	wire_write_u16(data, oldoffset, packedrdlen);
 }
 
 void RRTXT::fromStringContents(const std::vector<std::string>& tokens, const std::string& /* origin */)

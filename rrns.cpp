@@ -1,4 +1,5 @@
 #include "socket.h"
+#include "wire.h"
 #include "rrns.h"
 
 void RRNS::fromStringContents(const std::vector<std::string>& tokens, const std::string& origin)
@@ -42,5 +43,5 @@ void RRNS::packContents(char* data, unsigned int len, unsigned int& offset)
 	unsigned int oldoffset = offset - 2;
 	packName(data, len, offset, rdata);
 	unsigned int packedrdlen = offset - (oldoffset + 2);
-	(unsigned short&)data[oldoffset] = htons(packedrdlen);
+	wire_write_u16(data, oldoffset, packedrdlen);
 }

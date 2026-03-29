@@ -1,6 +1,6 @@
 # Makefile for DNS Server with UPDATE support
 
-CXX ?= g++
+CXX = clang++
 
 # Build configurations
 # Default: debug build with symbols, no optimization
@@ -323,23 +323,23 @@ run-test: $(SERVER_BIN)
 
 # Dependencies
 $(BUILD_DIR)/dnsserver.o: dnsserver.cpp socket.h zone.h message.h rr.h zoneFileLoader.h zone_authority.h update_processor.h query_processor.h $(VERSION_FILE)
-$(BUILD_DIR)/message.o: message.cpp message.h rr.h socket.h
-$(BUILD_DIR)/rr.o: rr.cpp rr.h socket.h rrsoa.h rrmx.h rrtxt.h rrptr.h rrcname.h rrns.h rraaaa.h rra.h rrcert.h rrdhcid.h
+$(BUILD_DIR)/message.o: message.cpp message.h rr.h socket.h wire.h
+$(BUILD_DIR)/rr.o: rr.cpp rr.h socket.h wire.h rrsoa.h rrmx.h rrtxt.h rrptr.h rrcname.h rrns.h rraaaa.h rra.h rrcert.h rrdhcid.h
 $(BUILD_DIR)/zoneFileLoader.o: zoneFileLoader.cpp zoneFileLoader.h zone.h rr.h
 $(BUILD_DIR)/zone.o: zone.cpp zone.h rr.h
 $(BUILD_DIR)/zone_authority.o: zone_authority.cpp zone_authority.h zone.h rr.h
 $(BUILD_DIR)/update_processor.o: update_processor.cpp update_processor.h message.h zone_authority.h rr.h
 $(BUILD_DIR)/query_processor.o: query_processor.cpp query_processor.h message.h zone_authority.h rr.h
-$(BUILD_DIR)/rra.o: rra.cpp rra.h rr.h socket.h
-$(BUILD_DIR)/rraaaa.o: rraaaa.cpp rraaaa.h rr.h socket.h
+$(BUILD_DIR)/rra.o: rra.cpp rra.h rr.h socket.h wire.h
+$(BUILD_DIR)/rraaaa.o: rraaaa.cpp rraaaa.h rr.h socket.h wire.h
 $(BUILD_DIR)/rrcert.o: rrcert.cpp rrcert.h rr.h socket.h
-$(BUILD_DIR)/rrcname.o: rrcname.cpp rrcname.h rr.h socket.h
-$(BUILD_DIR)/rrdhcid.o: rrdhcid.cpp rrdhcid.h rr.h socket.h
-$(BUILD_DIR)/rrmx.o: rrmx.cpp rrmx.h rr.h socket.h
-$(BUILD_DIR)/rrns.o: rrns.cpp rrns.h rr.h socket.h
-$(BUILD_DIR)/rrptr.o: rrptr.cpp rrptr.h rr.h socket.h
-$(BUILD_DIR)/rrsoa.o: rrsoa.cpp rrsoa.h rr.h socket.h
-$(BUILD_DIR)/rrtxt.o: rrtxt.cpp rrtxt.h rr.h socket.h
+$(BUILD_DIR)/rrcname.o: rrcname.cpp rrcname.h rr.h socket.h wire.h
+$(BUILD_DIR)/rrdhcid.o: rrdhcid.cpp rrdhcid.h rr.h socket.h wire.h
+$(BUILD_DIR)/rrmx.o: rrmx.cpp rrmx.h rr.h socket.h wire.h
+$(BUILD_DIR)/rrns.o: rrns.cpp rrns.h rr.h socket.h wire.h
+$(BUILD_DIR)/rrptr.o: rrptr.cpp rrptr.h rr.h socket.h wire.h
+$(BUILD_DIR)/rrsoa.o: rrsoa.cpp rrsoa.h rr.h socket.h wire.h
+$(BUILD_DIR)/rrtxt.o: rrtxt.cpp rrtxt.h rr.h socket.h wire.h
 
 $(BUILD_DIR)/test_test_dns_update.o: test_dns_update.cpp message.h rr.h update_processor.h zone_authority.h
 $(BUILD_DIR)/test_qp_test_query_processor.o: test_query_processor.cpp query_processor.h zone.h rr.h

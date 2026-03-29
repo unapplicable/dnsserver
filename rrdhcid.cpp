@@ -1,4 +1,5 @@
 #include "socket.h"
+#include "wire.h"
 #include "rrdhcid.h"
 #include "tsig.h"
 #include <sstream>
@@ -42,5 +43,5 @@ void RRDHCID::packContents(char* data, unsigned int /* len */, unsigned int& off
 	offset += static_cast<unsigned int>(identifier.length());
 	
 	unsigned int packedrdlen = offset - (oldoffset + 2);
-	(unsigned short&)data[oldoffset] = htons(packedrdlen);
+	wire_write_u16(data, oldoffset, packedrdlen);
 }

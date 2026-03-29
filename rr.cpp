@@ -1,5 +1,6 @@
 #include "rr.h"
 #include "socket.h"
+#include "wire.h"
 
 #include "rrsoa.h"
 #include "rrmx.h"
@@ -128,7 +129,7 @@ std::string RR::unpackName(char *data, unsigned int len, unsigned int& offset)
 				throw DNSParseException(DNSParseException::TRUNCATED_PACKET,
 				                        "Incomplete compression pointer", i, len);
 			
-			unsigned int ptr_offset = ntohs((unsigned short &)data[i]) & ~0xC000;
+			unsigned int ptr_offset = wire_read_u16(data, i) & ~0xC000;
 			
 			// Check for loop: have we visited this offset before?
 			// Calculate byte and bit indices in the visited array
@@ -343,20 +344,20 @@ void RR::pack(char *data, unsigned int len, unsigned int& offset)
 {
 	packName(data, len, offset, name);
 
-	(unsigned short&)data[offset] = htons(type);
+	wire_write_u16(data, offset, type);
 	offset += 2;
 
-	(unsigned short&)data[offset] = htons(rrclass);
+	wire_write_u16(data, offset, rrclass);
 	offset += 2;
 
 	if (query)
 		return;
 
-	(unsigned long&)data[offset] = htonl(ttl);
+	wire_write_u32(data, offset, ttl);
 	offset += 4;
 
 	rdlen = static_cast<unsigned short>(rdata.length());
-	(unsigned short&)data[offset] = htons(rdlen);
+	wire_write_u16(data, offset, rdlen);
 	offset += 2;
 
 	packContents(data, len, offset);
@@ -376,13 +377,13 @@ bool RR::unpack(char *data, unsigned int len, unsigned int& offset, bool isQuery
 	if (offset + 1 >= len)
 		return false;
 
-	type = (RRType)ntohs((short &)data[offset]);
+	type = (RRType)wire_read_u16(data, offset);
 	offset += 2;
 
 	if (offset + 1 >= len)
 		return false;
 
-	rrclass = (RRClass)ntohs((short &)data[offset]);
+	rrclass = (RRClass)wire_read_u16(data, offset);
 	offset += 2;
 
 	if (query)
@@ -396,13 +397,13 @@ bool RR::unpack(char *data, unsigned int len, unsigned int& offset, bool isQuery
 	if (offset + 3 >= len)
 		return false;
 
-	ttl = ntohl(*(uint32_t*)&data[offset]);
+	ttl = wire_read_u32(data, offset);
 	offset += 4;
 
 	if (offset + 1 >= len)
 		return false;
 
-	rdlen = ntohs(*(uint16_t*)&data[offset]);
+	rdlen = wire_read_u16(data, offset);
 	offset += 2;
 
 	if (offset + rdlen > len)

@@ -1,8 +1,8 @@
 #include "rropt.h"
+#include "wire.h"
 #include <iomanip>
 #include <cstring>
 #include <cstdint>
-#include <arpa/inet.h>
 
 using namespace std;
 
@@ -15,24 +15,24 @@ bool RROPT::unpack(char *data, unsigned int len, unsigned int& offset, bool isQu
         return false;
     
     // Type (should be 41)
-    type = (RRType)ntohs(*(uint16_t*)&data[offset]);
+    type = (RRType)wire_read_u16(data, offset);
     offset += 2;
     
     if (type != OPT)
         return false;
     
     // CLASS field holds UDP payload size
-    udp_payload_size = ntohs(*(uint16_t*)&data[offset]);
+    udp_payload_size = wire_read_u16(data, offset);
     rrclass = (RRClass)udp_payload_size;
     offset += 2;
     
     // TTL field holds extended RCODE, version, and flags
-    ttl = ntohl(*(uint32_t*)&data[offset]);
+    ttl = wire_read_u32(data, offset);
     offset += 4;
     extractFields();
     
     // RDLEN
-    rdlen = ntohs(*(uint16_t*)&data[offset]);
+    rdlen = wire_read_u16(data, offset);
     offset += 2;
     
     if (offset + rdlen > len)
@@ -45,10 +45,10 @@ bool RROPT::unpack(char *data, unsigned int len, unsigned int& offset, bool isQu
     unsigned int opt_offset = 0;
     while (opt_offset + 4 <= rdlen) {
         EDNSOption option;
-        option.code = ntohs(*(uint16_t*)&rdata[opt_offset]);
+        option.code = wire_read_u16(rdata.data(), opt_offset);
         opt_offset += 2;
         
-        uint16_t opt_len = ntohs(*(uint16_t*)&rdata[opt_offset]);
+        uint16_t opt_len = wire_read_u16(rdata.data(), opt_offset);
         opt_offset += 2;
         
         if (opt_offset + opt_len > rdlen)
@@ -87,19 +87,19 @@ void RROPT::pack(char *data, unsigned int len, unsigned int& offset)
     // Pack type (OPT = 41)
     if (offset + 2 > len)
         return;
-    *(uint16_t*)&data[offset] = htons(OPT);
+    wire_write_u16(data, offset, OPT);
     offset += 2;
     
     // Pack CLASS (UDP payload size)
     if (offset + 2 > len)
         return;
-    *(uint16_t*)&data[offset] = htons(udp_payload_size);
+    wire_write_u16(data, offset, udp_payload_size);
     offset += 2;
     
     // Pack TTL (extended RCODE | version | flags)
     if (offset + 4 > len)
         return;
-    *(uint32_t*)&data[offset] = htonl(ttl);
+    wire_write_u32(data, offset, ttl);
     offset += 4;
     
     // Rebuild rdata to get correct rdlen
@@ -118,7 +118,7 @@ void RROPT::pack(char *data, unsigned int len, unsigned int& offset)
     // Pack RDLEN
     if (offset + 2 > len)
         return;
-    *(uint16_t*)&data[offset] = htons(rdlen);
+    wire_write_u16(data, offset, rdlen);
     offset += 2;
     
     // Pack contents (RDATA with options)

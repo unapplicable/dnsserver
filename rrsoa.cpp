@@ -1,4 +1,5 @@
 #include "socket.h"
+#include "wire.h"
 #include "rrsoa.h"
 
 std::ostream& RRSoa::dumpContents(std::ostream& os) const
@@ -55,19 +56,19 @@ bool RRSoa::unpack(char* data, unsigned int len, unsigned int& offset, bool isQu
 	if (rdataOffset + 20 > rdataEnd)
 		return false;
 	
-	serial = ntohl(*(uint32_t*)&data[rdataOffset]);
+	serial = wire_read_u32(data, rdataOffset);
 	rdataOffset += 4;
 	
-	refresh = ntohl(*(uint32_t*)&data[rdataOffset]);
+	refresh = wire_read_u32(data, rdataOffset);
 	rdataOffset += 4;
 	
-	retry = ntohl(*(uint32_t*)&data[rdataOffset]);
+	retry = wire_read_u32(data, rdataOffset);
 	rdataOffset += 4;
 	
-	expire = ntohl(*(uint32_t*)&data[rdataOffset]);
+	expire = wire_read_u32(data, rdataOffset);
 	rdataOffset += 4;
 	
-	minttl = ntohl(*(uint32_t*)&data[rdataOffset]);
+	minttl = wire_read_u32(data, rdataOffset);
 	rdataOffset += 4;
 	
 	return true;
@@ -78,19 +79,19 @@ void RRSoa::packContents(char* data, unsigned int len, unsigned int& offset)
 	unsigned int oldoffset = offset - 2;
 	packName(data, len, offset, ns); // ns
 	packName(data, len, offset, mail); // mail
-	(unsigned long&)data[offset] = htonl(serial); // serial
+	wire_write_u32(data, offset, serial); // serial
 	offset += 4;
-	(unsigned long&)data[offset] = htonl(refresh); // refresh
+	wire_write_u32(data, offset, refresh); // refresh
 	offset += 4;
-	(unsigned long&)data[offset] = htonl(retry); // retry
+	wire_write_u32(data, offset, retry); // retry
 	offset += 4;
-	(unsigned long&)data[offset] = htonl(expire); // expire
+	wire_write_u32(data, offset, expire); // expire
 	offset += 4;
-	(unsigned long&)data[offset] = htonl(minttl); // minttl
+	wire_write_u32(data, offset, minttl); // minttl
 	offset += 4;
 
 	unsigned int packedrdlen = offset - (oldoffset + 2);
-	(unsigned short&)data[oldoffset] = htons(packedrdlen);	
+	wire_write_u16(data, oldoffset, packedrdlen);	
 }
 
 std::string RRSoa::toString() const
