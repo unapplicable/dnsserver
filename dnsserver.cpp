@@ -185,6 +185,24 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 		
 		if (!lookup.authorized)
 		{
+			// Return REFUSED per RFC 1035 - client gets explicit error instead of silent drop
+			Message *reply = new Message();
+			reply->id = request->id;
+			reply->opcode = Message::QUERY;
+			reply->qd.push_back(qrr->clone());
+			reply->truncation = false;
+			reply->query = false;
+			reply->authoritative = true;
+			reply->rcode = Message::CODEREFUSED;
+			reply->recursionavailable = reply->recursiondesired = request->recursiondesired;
+			reply->copyEDNS(request);
+			
+			char response[0x10000];
+			unsigned int response_len = 0;
+			reply->pack(response, sizeof(response), response_len);
+			
+			send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
+			delete reply;
 			return;
 		}
 		
