@@ -360,10 +360,11 @@ void handleUpdate(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *ad
 			
 			// Check prerequisites using UpdateProcessor
 			string prereq_error;
-			if (!UpdateProcessor::checkPrerequisites(request, *target_zone, prereq_error))
+			Message::RCode prereq_result = UpdateProcessor::checkPrerequisites(request, *target_zone, prereq_error);
+			if (prereq_result != Message::CODENOERROR)
 			{
-				cout << "UPDATE: " << prereq_error << endl << flush;
-				reply->rcode = Message::CODENAMEERROR;
+			 cout << "UPDATE: " << prereq_error << endl << flush;
+				reply->rcode = prereq_result;
 				goto send_response;
 			}
 			

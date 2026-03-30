@@ -1264,9 +1264,9 @@ TEST_CASE("UpdateProcessor::checkPrerequisites validates name exists (ANY TYPEST
     
     std::string error;
     Zone* zone = zones[0];
-    bool result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
+    Message::RCode result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     
-    CHECK(result);
+    CHECK(result == Message::CODENOERROR);
     CHECK(error.empty());
 }
 
@@ -1290,9 +1290,9 @@ TEST_CASE("UpdateProcessor::checkPrerequisites fails when name doesn't exist", "
     
     std::string error;
     Zone* zone = zones[0];
-    bool result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
+    Message::RCode result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     
-    CHECK_FALSE(result);
+    CHECK(result != Message::CODENOERROR);
     CHECK(error == "Prerequisite failed - name not in use");
 }
 
@@ -1317,9 +1317,9 @@ TEST_CASE("UpdateProcessor::checkPrerequisites validates specific RR type exists
     
     std::string error;
     Zone* zone = zones[0];
-    bool result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
+    Message::RCode result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     
-    CHECK(result);
+    CHECK(result == Message::CODENOERROR);
 }
 
 TEST_CASE("UpdateProcessor::checkPrerequisites validates name not in use (NONE TYPESTAR)", "[logic][prereq]")
@@ -1342,9 +1342,9 @@ TEST_CASE("UpdateProcessor::checkPrerequisites validates name not in use (NONE T
     
     std::string error;
     Zone* zone = zones[0];
-    bool result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
+    Message::RCode result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     
-    CHECK(result);
+    CHECK(result == Message::CODENOERROR);
 }
 
 TEST_CASE("UpdateProcessor::applyUpdates adds new RR", "[logic][update]")
@@ -1587,9 +1587,9 @@ TEST_CASE("UpdateProcessor::checkPrerequisites through Zone", "[architecture][up
     request.an.push_back(prereq);
     
     std::string error;
-    bool result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
+    Message::RCode result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
     
-    CHECK(result);
+    CHECK(result == Message::CODENOERROR);
     CHECK(error.empty());
 }
 
@@ -1656,8 +1656,8 @@ TEST_CASE("Architecture: Complete UPDATE flow through components", "[architectur
     
     // 4. Check prerequisites with UpdateProcessor
     std::string error;
-    bool prereq_result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
-    CHECK(prereq_result);
+    Message::RCode prereq_result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
+    CHECK(prereq_result == Message::CODENOERROR);
     
     // 5. Apply updates with UpdateProcessor
     bool update_result = UpdateProcessor::applyUpdates(&request, *zone, error);

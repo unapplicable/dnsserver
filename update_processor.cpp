@@ -3,9 +3,9 @@
 
 using namespace std;
 
-bool UpdateProcessor::checkPrerequisites(const Message* request, 
-                                        Zone& zone,
-                                        string& error_message)
+Message::RCode UpdateProcessor::checkPrerequisites(const Message* request, 
+                                         Zone& zone,
+                                         string& error_message)
 {
     for (vector<RR*>::const_iterator iter = request->an.begin(); iter != request->an.end(); ++iter)
     {
@@ -19,7 +19,7 @@ bool UpdateProcessor::checkPrerequisites(const Message* request,
                 if (!zone.hasRecordWithName(prereq->name))
                 {
                     error_message = "Prerequisite failed - name not in use";
-                    return false;
+                    return Message::CODENAMEERROR;  // NXDOMAIN - name should exist
                 }
             }
             else
@@ -28,7 +28,7 @@ bool UpdateProcessor::checkPrerequisites(const Message* request,
                 if (!zone.hasRecordWithNameAndType(prereq->name, prereq->type))
                 {
                     error_message = "Prerequisite failed - RRset does not exist";
-                    return false;
+                    return Message::CODENXRRSET;  // RFC 2136: RRset should exist
                 }
             }
         }
@@ -40,7 +40,7 @@ bool UpdateProcessor::checkPrerequisites(const Message* request,
                 if (zone.hasRecordWithName(prereq->name))
                 {
                     error_message = "Prerequisite failed - name is in use";
-                    return false;
+                    return Message::CODEYXDOMAIN;  // RFC 2136: name should not exist
                 }
             }
             else
@@ -49,13 +49,13 @@ bool UpdateProcessor::checkPrerequisites(const Message* request,
                 if (zone.hasRecordWithNameAndType(prereq->name, prereq->type))
                 {
                     error_message = "Prerequisite failed - RRset exists";
-                    return false;
+                    return Message::CODEYXRRSET;  // RFC 2136: RRset should not exist
                 }
             }
         }
     }
     
-    return true;
+    return Message::CODENOERROR;
 }
 
 bool UpdateProcessor::applyUpdates(const Message* request,

@@ -10,9 +10,10 @@
 class UpdateProcessor {
 public:
     // Check if all prerequisites are satisfied
-    static bool checkPrerequisites(const Message* request, 
-                                   Zone& zone,
-                                   std::string& error_message);
+    // Returns the appropriate RCODE on failure
+    static Message::RCode checkPrerequisites(const Message* request, 
+                                           Zone& zone,
+                                           std::string& error_message);
     
     // Apply all updates to the zone
     static bool applyUpdates(const Message* request,

@@ -11,7 +11,18 @@ class Message
 {
 public:
 	enum Opcode {QUERY = 0, IQUERY = 1, STATUS = 2, UPDATE = 5};
-	enum RCode {CODENOERROR , CODEFORMATERROR, CODESERVERFAILURE, CODENAMEERROR, CODENOTIMPLEMENTED, CODEREFUSED};
+	enum RCode {
+		CODENOERROR = 0, 
+		CODEFORMATERROR = 1, 
+		CODESERVERFAILURE = 2, 
+		CODENAMEERROR = 3, 
+		CODENOTIMPLEMENTED = 4, 
+		CODEREFUSED = 5,
+		CODEYXDOMAIN = 6,     // RFC 2136: name exists when it shouldn't
+		CODEYXRRSET = 7,      // RFC 2136: RRset exists when it shouldn't
+		CODENXRRSET = 8,      // RFC 2136: RRset doesn't exist when it should
+		CODENOTZONE = 10     // RFC 2136: name not in zone
+	};
 
 	unsigned short id;
 	bool query;
@@ -53,6 +64,7 @@ public:
 		{
 			SCC(NOERROR); SCC(FORMATERROR); SCC(SERVERFAILURE); 
 			SCC(NAMEERROR); SCC(NOTIMPLEMENTED); SCC(REFUSED); 
+			SCC(YXDOMAIN); SCC(YXRRSET); SCC(NXRRSET); SCC(NOTZONE);
 			default:
 				std::stringstream ss;
 				ss << "unk(" << std::hex << (int)c << ")";
