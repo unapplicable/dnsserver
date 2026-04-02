@@ -109,12 +109,8 @@ void test_acl_query_returns_both_zones()
     assert(found_main_a);
     assert(found_acl_a);
     
-    // Cleanup - set parent to NULL to prevent double-free
-    acl_zone->parent = NULL;
-    main_zone->acl = NULL;
-    delete acl;
+    // Cleanup - Acl::~Acl() will delete ACL sub-zones
     delete main_zone;
-    delete acl_zone;
     
     cout << "PASS" << endl;
 }

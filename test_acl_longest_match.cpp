@@ -106,14 +106,11 @@ void testAclLongestMatch()
 	unsigned long test_ip_5 = inet_addr("192.168.1.18");
 	Zone* result5 = parent_zone->acl->findMostSpecificMatch(test_ip_5);
 	assert(result5 == acl_zone_30);
-	cout << "  ✓ IP 192.168.1.18 matches /30 subnet (most specific of two matches)" << endl;
-	
+	 	
 	delete parent_zone;
-	delete acl_zone_24;
-	delete acl_zone_28;
-	delete acl_zone_30;
+	// ACL sub-zones are deleted by Acl::~Acl()
 	
-	cout << "PASS: ACL longest prefix match" << endl << endl;
+cout << "PASS: ACL longest prefix match" << endl << endl;
 }
 
 // Test that conflicting records in ACL zones work correctly
@@ -178,11 +175,11 @@ void testAclConflictingRecords()
 	cout << "  ✓ Parent zone has A record: server.test.com. -> 192.168.1.1" << endl;
 	cout << "  ✓ ACL zone has A record: server.test.com. -> 10.0.0.1" << endl;
 	cout << "  ✓ Records with same name can exist in parent and ACL zones" << endl;
-	
+	 	
 	delete parent_zone;
-	delete acl_zone;
+	// ACL sub-zones are deleted by Acl::~Acl()
 	
-	cout << "PASS: ACL conflicting records" << endl << endl;
+cout << "PASS: ACL conflicting records" << endl << endl;
 }
 
 // Test multiple ACL entries with overlapping subnets
@@ -232,13 +229,11 @@ void testMultipleOverlappingAcls()
 	Zone* result3 = parent_zone->acl->findMostSpecificMatch(ip3);
 	assert(result3 == acl1);
 	cout << "  ✓ IP 10.5.5.50 matches /8 subnet (only match)" << endl;
-	
+	 	
 	delete parent_zone;
-	delete acl1;
-	delete acl2;
-	delete acl3;
+	// ACL sub-zones are deleted by Acl::~Acl()
 	
-	cout << "PASS: Multiple overlapping ACLs" << endl << endl;
+cout << "PASS: Multiple overlapping ACLs" << endl << endl;
 }
 
 int main()

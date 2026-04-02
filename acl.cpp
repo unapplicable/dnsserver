@@ -1,4 +1,5 @@
 #include "acl.h"
+#include <set>
 #include "zone.h"
 #include "tsig.h"
 #include <sstream>
@@ -68,6 +69,17 @@ Acl::Acl()
 
 Acl::~Acl()
 {
+	std::set<Zone*> deleted_zones;
+	for (vector<AclEntry>::iterator it = entries.begin(); it != entries.end(); ++it)
+	{
+		if (it->zone && deleted_zones.find(it->zone) == deleted_zones.end())
+		{
+			delete it->zone;
+			deleted_zones.insert(it->zone);
+			it->zone = NULL;
+		}
+	}
+	entries.clear();
 }
 
 void Acl::addSubnet(const string& subnet_str, Zone* zone)

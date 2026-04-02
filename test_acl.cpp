@@ -56,20 +56,22 @@ void test_subnet_toString() {
 void test_acl_access_control() {
     cout << "Testing ACL access control..." << endl;
     
-    Zone zone1, zone2;
-    zone1.name = "zone1.test.";
-    zone2.name = "zone2.test.";
+    // Use heap-allocated zones since Acl destructor will delete them
+    Zone* zone1 = new Zone();
+    zone1->name = "zone1.test.";
+    Zone* zone2 = new Zone();
+    zone2->name = "zone2.test.";
     
     Acl acl;
-    acl.addSubnet("192.168.1.0/24", &zone1);
-    acl.addSubnet("10.0.0.0/8", &zone2);
+    acl.addSubnet("192.168.1.0/24", zone1);
+    acl.addSubnet("10.0.0.0/8", zone2);
     
     Zone* matched_zone = NULL;
     
     // Test matching first subnet
     unsigned long ip1 = inet_addr("192.168.1.50");
     assert(acl.checkAccess(ip1, &matched_zone));
-    assert(matched_zone == &zone1);
+    assert(matched_zone == zone1);
     
     cout << "  First subnet match: PASSED" << endl;
     
@@ -77,7 +79,7 @@ void test_acl_access_control() {
     matched_zone = NULL;
     unsigned long ip2 = inet_addr("10.5.5.5");
     assert(acl.checkAccess(ip2, &matched_zone));
-    assert(matched_zone == &zone2);
+    assert(matched_zone == zone2);
     
     cout << "  Second subnet match: PASSED" << endl;
     
@@ -87,37 +89,44 @@ void test_acl_access_control() {
     assert(!acl.checkAccess(ip3, &matched_zone));
     
     cout << "  No match rejection: PASSED" << endl;
+    
+    // Cleanup - Acl destructor will delete the zones
 }
 
 void test_acl_toString() {
     cout << "Testing ACL toString..." << endl;
     
-    Zone zone;
+    // Use heap-allocated zone since Acl destructor will delete it
+    Zone* zone = new Zone();
     Acl acl;
-    acl.addSubnet("192.168.1.0/24", &zone);
-    acl.addSubnet("10.0.0.0/8", &zone);
+    acl.addSubnet("192.168.1.0/24", zone);
+    acl.addSubnet("10.0.0.0/8", zone);
     
     string str = acl.toString();
     assert(str.find("192.168.1.0/24") != string::npos);
     assert(str.find("10.0.0.0/8") != string::npos);
     
     cout << "  ACL toString: PASSED" << endl;
+    
+    // Cleanup - Acl destructor will delete the zone
 }
 
 void test_acl_tsig_propagation() {
     cout << "Testing TSIG key propagation..." << endl;
     
-    Zone zone1, zone2;
-    zone1.name = "zone1.test.";
-    zone2.name = "zone2.test.";
+    // Use heap-allocated zones since Acl destructor will delete them
+    Zone* zone1 = new Zone();
+    zone1->name = "zone1.test.";
+    Zone* zone2 = new Zone();
+    zone2->name = "zone2.test.";
     
     // Ensure zones start with no TSIG key
-    assert(zone1.tsig_key == NULL);
-    assert(zone2.tsig_key == NULL);
+    assert(zone1->tsig_key == NULL);
+    assert(zone2->tsig_key == NULL);
     
     Acl acl;
-    acl.addSubnet("192.168.1.0/24", &zone1);
-    acl.addSubnet("10.0.0.0/8", &zone2);
+    acl.addSubnet("192.168.1.0/24", zone1);
+    acl.addSubnet("10.0.0.0/8", zone2);
     
     // Create TSIG key
     TSIG::Key key;
@@ -130,12 +139,14 @@ void test_acl_tsig_propagation() {
     acl.propagateTSIGKey(&key);
     
     // Verify both zones got the key
-    assert(zone1.tsig_key != NULL);
-    assert(zone2.tsig_key != NULL);
-    assert(zone1.tsig_key->name == "testkey.example.com.");
-    assert(zone2.tsig_key->algorithm == TSIG::HMAC_SHA256);
+    assert(zone1->tsig_key != NULL);
+    assert(zone2->tsig_key != NULL);
+    assert(zone1->tsig_key->name == "testkey.example.com.");
+    assert(zone2->tsig_key->algorithm == TSIG::HMAC_SHA256);
     
     cout << "  TSIG propagation: PASSED" << endl;
+    
+    // Cleanup - Acl destructor will delete the zones
 }
 
 int main() {
