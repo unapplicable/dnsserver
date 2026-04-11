@@ -710,6 +710,13 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 			addrinfoi && addrinfoi->ai_family != PF_INET && addrinfoi->ai_family != PF_INET6;
 			addrinfoi = addrinfoi->ai_next);
 
+		if (!addrinfoi)
+		{
+			cerr << "No usable address family for UDP " << addr << endl;
+			freeaddrinfo(addrinfo);
+			return;
+		}
+
 		if ((udp_s[numSockets] = socket(addrinfoi->ai_family, addrinfoi->ai_socktype, addrinfoi->ai_protocol)) == INVALID_SOCKET)
 		{
 			cerr << "UDP socket failed " << addr << endl;
@@ -747,6 +754,13 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 		for (addrinfoi = addrinfo;
 			addrinfoi && addrinfoi->ai_family != PF_INET && addrinfoi->ai_family != PF_INET6;
 			addrinfoi = addrinfoi->ai_next);
+
+		if (!addrinfoi)
+		{
+			cerr << "No usable address family for TCP " << addr << endl;
+			freeaddrinfo(addrinfo);
+			return;
+		}
 
 		if ((tcp_s[i] = socket(addrinfoi->ai_family, addrinfoi->ai_socktype, addrinfoi->ai_protocol)) == INVALID_SOCKET)
 		{
