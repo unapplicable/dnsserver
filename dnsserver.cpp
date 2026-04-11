@@ -560,8 +560,16 @@ void daemonize(int uid, int gid)
 	if (gid != -1)
 		setregid(gid, gid);
 
-	if (fork() != 0)
-		exit(1);
+	{
+		pid_t pid = fork();
+		if (pid < 0)
+		{
+			cerr << "daemonize: fork() failed" << endl;
+			exit(1);
+		}
+		if (pid > 0)
+			exit(0);  // parent exits successfully; child continues
+	}
 #endif
 }
 
