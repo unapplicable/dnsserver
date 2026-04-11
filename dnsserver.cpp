@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iomanip>
 #include <algorithm>
+#include <memory>
 #include <ctime>
 #include <cstring>
 #include <pthread.h>
@@ -73,7 +74,7 @@ void handleVersionBind(SOCKET s, SOCKADDR_STORAGE* addr, int addrlen, Message* r
 {
 	try {
 		const RR *qrr = request->qd[0];
-		Message *reply = new Message();
+		std::unique_ptr<Message> reply(new Message());
 		reply->id = request->id;
 		reply->opcode = Message::QUERY;
 		reply->qd.push_back(qrr->clone());
@@ -121,7 +122,6 @@ void handleVersionBind(SOCKET s, SOCKADDR_STORAGE* addr, int addrlen, Message* r
 		reply->pack(response, sizeof(response), response_len);
 		
 		send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
-		delete reply;
 	}
 	catch (const std::exception& e)
 	{
@@ -163,7 +163,7 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 		if (!lookup.found)
 		{
 			// Zone not found - return SERVFAIL instead of no response
-			Message *reply = new Message();
+			std::unique_ptr<Message> reply(new Message());
 			reply->id = request->id;
 			reply->opcode = Message::QUERY;
 			reply->qd.push_back(qrr->clone());
@@ -179,14 +179,13 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 			reply->pack(response, sizeof(response), response_len);
 			
 			send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
-			delete reply;
 			return;
 		}
 		
 		if (!lookup.authorized)
 		{
 			// Return REFUSED per RFC 1035 - client gets explicit error instead of silent drop
-			Message *reply = new Message();
+			std::unique_ptr<Message> reply(new Message());
 			reply->id = request->id;
 			reply->opcode = Message::QUERY;
 			reply->qd.push_back(qrr->clone());
@@ -202,11 +201,10 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 			reply->pack(response, sizeof(response), response_len);
 			
 			send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
-			delete reply;
 			return;
 		}
 		
-		Message *reply = new Message();
+		std::unique_ptr<Message> reply(new Message());
 		reply->id = request->id;
 		reply->opcode = Message::QUERY;
 		reply->qd.push_back(qrr->clone());
@@ -273,8 +271,6 @@ void handleQuery(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *add
 		reply->pack(response, sizeof(response), response_len);
 		
 		send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
-		
-		delete reply;
 	}
 	catch (const std::exception& e)
 	{
@@ -301,7 +297,7 @@ void handleUpdate(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *ad
 {
 	try {
 		const RR *zone_rr = NULL;
-		Message *reply = new Message();
+		std::unique_ptr<Message> reply(new Message());
 		reply->id = request->id;
 		reply->opcode = Message::UPDATE;
 		reply->query = false;
@@ -398,8 +394,6 @@ send_response:
 		
 		reply->pack(packet, (unsigned int)sizeof(packet), packetsize);
 		send_dns_response(s, packet, packetsize, addr, addrlen, is_tcp);
-		
-		delete reply;
 	}
 	catch (const std::exception& e)
 	{
@@ -443,11 +437,10 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 	//dump(buf, len);
 
 	try {
-		Message *msgtest = new Message();
+		std::unique_ptr<Message> msgtest(new Message());
 		unsigned int offset = 0;
 		if (!msgtest->unpack(buf, len, offset))
 		{
-			delete msgtest;
 			cerr << "[UNPACK_FAILED] Message unpacking failed" << endl;
 			cerr << "[UNPACK_FAILED] Client: " << from << ", Packet length: " << len << " bytes" << endl;
 			dumpPacketHex("UNPACK_FAILED", buf, len);
@@ -460,19 +453,15 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 		
 		if (msgtest->query && msgtest->opcode == Message::UPDATE)
 		{
-			handleUpdate(s, buf, len, from, addr, addrlen, msgtest, zones, fromaddr, is_tcp);
-			delete msgtest;
+			handleUpdate(s, buf, len, from, addr, addrlen, msgtest.get(), zones, fromaddr, is_tcp);
 			return;
 		}
 		
 		if (msgtest->query && msgtest->opcode == Message::QUERY)
 		{
-			handleQuery(s, buf, len, from, addr, addrlen, msgtest, zones, fromaddr, is_tcp);
-			delete msgtest;
+			handleQuery(s, buf, len, from, addr, addrlen, msgtest.get(), zones, fromaddr, is_tcp);
 			return;
 		}
-
-		delete msgtest;
 	}
 	catch (const std::exception& e)
 	{
