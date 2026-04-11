@@ -868,17 +868,29 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 				cerr << "[TCP_TIMEOUT] Failed to set socket timeout" << endl;
 			}
 
-			// Read length prefix
+			// Read length prefix (loop until all 2 bytes are received)
 			unsigned short msglen;
-			int recv_result = recv(client, (char*)&msglen, 2, 0);
-			if (recv_result != 2)
 			{
-				if (is_recv_timeout())
+				char* lenbuf = reinterpret_cast<char*>(&msglen);
+				int received = 0;
+				while (received < 2)
 				{
-					cerr << "[TCP_TIMEOUT] Client connection timed out reading length prefix" << endl;
+					int r = recv(client, lenbuf + received, 2 - received, 0);
+					if (r <= 0)
+					{
+						if (r == 0 || !is_recv_timeout())
+						{
+							// connection closed or hard error
+						}
+						else
+						{
+							cerr << "[TCP_TIMEOUT] Client connection timed out reading length prefix" << endl;
+						}
+						closesocket_compat(client);
+						goto next_tcp_client;
+					}
+					received += r;
 				}
-				closesocket_compat(client);
-				continue;
 			}
 			msglen = ntohs(msglen);
 			if (msglen == 0)
@@ -887,16 +899,21 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 				continue;
 			}
 
-			// Read message
-			recv_result = recv(client, buf, msglen, 0);
-			if (recv_result != msglen)
+			// Read message body (loop until all msglen bytes are received)
 			{
-				if (is_recv_timeout())
+				int received = 0;
+				while (received < (int)msglen)
 				{
-					cerr << "[TCP_TIMEOUT] Client connection timed out reading message body" << endl;
+					int r = recv(client, buf + received, msglen - received, 0);
+					if (r <= 0)
+					{
+						if (is_recv_timeout())
+							cerr << "[TCP_TIMEOUT] Client connection timed out reading message body" << endl;
+						closesocket_compat(client);
+						goto next_tcp_client;
+					}
+					received += r;
 				}
-				closesocket_compat(client);
-				continue;
 			}
 
 			if (getnameinfo((sockaddr *)&from, fromlen, hostname, sizeof(hostname), NULL, 0, NI_NUMERICHOST))
@@ -905,6 +922,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 			handle(client, buf, msglen, hostname, reinterpret_cast<SOCKADDR_STORAGE*>(&from), fromlen, zones, true);
 			
 			closesocket_compat(client);
+			next_tcp_client:;
 		}
 	}
 	
