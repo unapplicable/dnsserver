@@ -358,6 +358,10 @@ void handleUpdate(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *ad
 			
 			cout << "UPDATE: Prerequisites: " << request->an.size() << ", Updates: " << request->ns.size() << endl << flush;
 			
+			// CRITICAL SECTION START: hold the lock for both prerequisite check and update
+			// to prevent TOCTOU races where zone state changes between the two operations.
+			MutexGuard<pthread_mutex_t> lock(&g_zone_mutex);
+			
 			// Check prerequisites using UpdateProcessor
 			string prereq_error;
 			Message::RCode prereq_result = UpdateProcessor::checkPrerequisites(request, *target_zone, prereq_error);
@@ -369,9 +373,6 @@ void handleUpdate(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *ad
 			}
 			
 			cout << "UPDATE: All prerequisites passed" << endl << flush;
-			
-			// CRITICAL SECTION START: Protect all zone modifications
-			MutexGuard<pthread_mutex_t> lock(&g_zone_mutex);
 			
 			// Apply updates using UpdateProcessor
 			string update_error;
