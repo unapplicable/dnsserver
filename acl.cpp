@@ -23,6 +23,11 @@ Subnet::Subnet(const string& str)
 		ip = inet_addr(str.c_str());
 	}
 	
+	// Clamp prefix length to valid range [0, 32] to prevent undefined behaviour
+	// from shift operations with out-of-range values.
+	if (smask < 0)  smask = 0;
+	if (smask > 32) smask = 32;
+	
 	mask = 0;
 	for (int i = 31; i >= 32 - smask; --i)
 		mask |= 1 << i;
