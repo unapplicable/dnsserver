@@ -678,6 +678,7 @@ void handleReloadRequest(vector<Zone*>& zones, vector<string>& zonefiles)
 void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, int uid, int gid, int port, bool should_daemonize)
 {
 	SOCKET udp_s[100], tcp_s[100];
+	static const int MAX_SOCKETS = 100;
 	int numSockets = 0;
 	char portstr[16];
 
@@ -697,6 +698,11 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 
 	for (numSockets = 0; vaddr[numSockets] != 0; ++numSockets)
 	{
+		if (numSockets >= MAX_SOCKETS)
+		{
+			cerr << "Too many IP addresses (max " << MAX_SOCKETS << ")" << endl;
+			return;
+		}
 		char* addr = vaddr[numSockets];
 		cerr << "binding UDP to " << addr << ":" << port << endl;
 
