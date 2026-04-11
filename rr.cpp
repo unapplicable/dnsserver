@@ -24,9 +24,15 @@ static char *hextab = (char*)"0123456789ABCDEF";
 
 unsigned char hex2bin(const std::string& hex)
 {
+	if (hex.length() < 2)
+		throw std::runtime_error("hex2bin: input too short");
+	const char* p0 = strchr(hextab, toupper(static_cast<unsigned char>(hex[0])));
+	const char* p1 = strchr(hextab, toupper(static_cast<unsigned char>(hex[1])));
+	if (!p0 || !p1)
+		throw std::runtime_error("hex2bin: invalid hex digit");
 	unsigned char res = 0;
-	res |= static_cast<unsigned char>((strchr(hextab, toupper(hex[0])) - hextab)) << 4;
-	res |= static_cast<unsigned char>((strchr(hextab, toupper(hex[1])) - hextab));
+	res |= static_cast<unsigned char>(p0 - hextab) << 4;
+	res |= static_cast<unsigned char>(p1 - hextab);
 	return res;
 }
 
