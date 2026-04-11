@@ -1,4 +1,5 @@
 #include "rrtsig.h"
+#include "wire.h"
 #include <iomanip>
 #include <cstring>
 #include <cstdint>
@@ -23,21 +24,21 @@ bool RRTSIG::unpack(char *data, unsigned int len, unsigned int& offset, bool isQ
     // Time signed (48 bits)
     if (rdata_offset + 6 > rdata.length())
         return false;
-    time_signed_high = ntohs(*(uint16_t*)&rdata[rdata_offset]);
+    time_signed_high = wire_read_u16(rdata.data(), rdata_offset);
     rdata_offset += 2;
-    time_signed_low = ntohl(*(uint32_t*)&rdata[rdata_offset]);
+    time_signed_low = wire_read_u32(rdata.data(), rdata_offset);
     rdata_offset += 4;
     
     // Fudge
     if (rdata_offset + 2 > rdata.length())
         return false;
-    fudge = ntohs(*(uint16_t*)&rdata[rdata_offset]);
+    fudge = wire_read_u16(rdata.data(), rdata_offset);
     rdata_offset += 2;
     
     // MAC size and MAC
     if (rdata_offset + 2 > rdata.length())
         return false;
-    mac_size = ntohs(*(uint16_t*)&rdata[rdata_offset]);
+    mac_size = wire_read_u16(rdata.data(), rdata_offset);
     rdata_offset += 2;
     
     if (rdata_offset + mac_size > rdata.length())
@@ -48,19 +49,19 @@ bool RRTSIG::unpack(char *data, unsigned int len, unsigned int& offset, bool isQ
     // Original ID
     if (rdata_offset + 2 > rdata.length())
         return false;
-    original_id = ntohs(*(uint16_t*)&rdata[rdata_offset]);
+    original_id = wire_read_u16(rdata.data(), rdata_offset);
     rdata_offset += 2;
     
     // Error
     if (rdata_offset + 2 > rdata.length())
         return false;
-    error = ntohs(*(uint16_t*)&rdata[rdata_offset]);
+    error = wire_read_u16(rdata.data(), rdata_offset);
     rdata_offset += 2;
     
     // Other length and other data
     if (rdata_offset + 2 > rdata.length())
         return false;
-    other_len = ntohs(*(uint16_t*)&rdata[rdata_offset]);
+    other_len = wire_read_u16(rdata.data(), rdata_offset);
     rdata_offset += 2;
     
     if (rdata_offset + other_len > rdata.length())
@@ -77,31 +78,31 @@ void RRTSIG::packContents(char* data, unsigned int len, unsigned int& offset)
     RR::packName(data, len, offset, algorithm);
     
     // Pack time signed (48 bits)
-    *(uint16_t*)&data[offset] = htons(time_signed_high);
+    wire_write_u16(data, offset, time_signed_high);
     offset += 2;
-    *(uint32_t*)&data[offset] = htonl(time_signed_low);
+    wire_write_u32(data, offset, time_signed_low);
     offset += 4;
     
     // Pack fudge
-    *(uint16_t*)&data[offset] = htons(fudge);
+    wire_write_u16(data, offset, fudge);
     offset += 2;
     
     // Pack MAC size and MAC
-    *(uint16_t*)&data[offset] = htons(mac_size);
+    wire_write_u16(data, offset, mac_size);
     offset += 2;
     mac.copy(&data[offset], mac_size);
     offset += mac_size;
     
     // Pack original ID
-    *(uint16_t*)&data[offset] = htons(original_id);
+    wire_write_u16(data, offset, original_id);
     offset += 2;
     
     // Pack error
-    *(uint16_t*)&data[offset] = htons(error);
+    wire_write_u16(data, offset, error);
     offset += 2;
     
     // Pack other length and data
-    *(uint16_t*)&data[offset] = htons(other_len);
+    wire_write_u16(data, offset, other_len);
     offset += 2;
     if (other_len > 0) {
         other_data.copy(&data[offset], other_len);

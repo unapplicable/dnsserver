@@ -1,5 +1,6 @@
 #include "tsig.h"
 #include "rrtsig.h"
+#include "wire.h"
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 #include <openssl/buffer.h>
@@ -132,10 +133,10 @@ string TSIG::buildSigningData(const char* message,
     }
     
     // Step 1: Parse header to get counts
-    uint16_t qdcount = ntohs(*(uint16_t*)&message[4]);
-    uint16_t ancount = ntohs(*(uint16_t*)&message[6]);
-    uint16_t nscount = ntohs(*(uint16_t*)&message[8]);
-    uint16_t arcount = ntohs(*(uint16_t*)&message[10]);
+    uint16_t qdcount = wire_read_u16(message, 4);
+    uint16_t ancount = wire_read_u16(message, 6);
+    uint16_t nscount = wire_read_u16(message, 8);
+    uint16_t arcount = wire_read_u16(message, 10);
     
     // Step 2: Find where TSIG record starts (it's the last AR record)
     unsigned int offset = 12; // Start after DNS header
