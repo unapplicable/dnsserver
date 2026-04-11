@@ -65,7 +65,7 @@ void dumpPacketHex(const char* label, char *buf, int len)
 		else if (i % 2 == 1)
 			cerr << " ";
 	}
-	if ((len - 1) % 16 != 15)
+	if (len > 0 && (len - 1) % 16 != 15)
 		cerr << endl;
 	cerr << dec << flush;
 }
