@@ -955,7 +955,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 			handle(client, buf, msglen, hostname, reinterpret_cast<SOCKADDR_STORAGE*>(&from), fromlen, zones, true);
 			
 			closesocket_compat(client);
-			next_tcp_client:;
+			next_tcp_client: /* jump target for early-exit from recv loops above */ ;
 		}
 	}
 	
