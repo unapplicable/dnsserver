@@ -71,7 +71,7 @@ std::ostream& RR::dumpContents(std::ostream& os) const
 	return os;	
 }
 
-void RR::packName(char *data, unsigned int /* len */, unsigned int& offset, std::string name, bool terminate)
+void RR::packName(char *data, unsigned int len, unsigned int& offset, std::string name, bool terminate)
 {
 	std::string part;
 	do
@@ -89,6 +89,9 @@ void RR::packName(char *data, unsigned int /* len */, unsigned int& offset, std:
 
 		if (terminate || !part.empty())
 		{
+			// Bounds check: 1-byte length prefix + label bytes must fit in buffer
+			if (offset + 1 + part.length() > len)
+				throw std::runtime_error("packName: buffer overflow writing DNS label");
 			data[offset++] = (unsigned char)part.length();
 			part.copy(&data[offset], part.length());
 			offset += (unsigned int)part.length();
