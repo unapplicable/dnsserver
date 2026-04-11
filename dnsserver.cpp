@@ -744,6 +744,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 		if ((udp_s[numSockets] = socket(addrinfoi->ai_family, addrinfoi->ai_socktype, addrinfoi->ai_protocol)) == INVALID_SOCKET)
 		{
 			cerr << "UDP socket failed " << addr << endl;
+			freeaddrinfo(addrinfo);
 			return;
 		}
 
@@ -752,6 +753,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 		if (bind(udp_s[numSockets], addrinfoi->ai_addr, static_cast<int>(addrinfoi->ai_addrlen)) == SOCKET_ERROR)
 		{
 			cerr << "UDP bind failed " << addr << ":" << port << endl;
+			freeaddrinfo(addrinfo);
 			return;
 		}
 
@@ -789,6 +791,7 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 		if ((tcp_s[i] = socket(addrinfoi->ai_family, addrinfoi->ai_socktype, addrinfoi->ai_protocol)) == INVALID_SOCKET)
 		{
 			cerr << "TCP socket failed " << addr << endl;
+			freeaddrinfo(addrinfo);
 			return;
 		}
 
@@ -799,12 +802,14 @@ void serverloop(char **vaddr, vector<Zone *>& zones, vector<string>& zonefiles, 
 		if (bind(tcp_s[i], addrinfoi->ai_addr, static_cast<int>(addrinfoi->ai_addrlen)) == SOCKET_ERROR)
 		{
 			cerr << "TCP bind failed " << addr << ":" << port << endl;
+			freeaddrinfo(addrinfo);
 			return;
 		}
 
 		if (listen(tcp_s[i], 128) == SOCKET_ERROR)
 		{
 			cerr << "TCP listen failed " << addr << ":" << port << endl;
+			freeaddrinfo(addrinfo);
 			return;
 		}
 
