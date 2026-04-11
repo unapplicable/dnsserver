@@ -462,6 +462,26 @@ void handle(SOCKET s, char *buf, int len, char *from, SOCKADDR_STORAGE *addr, in
 			handleQuery(s, buf, len, from, addr, addrlen, msgtest.get(), zones, fromaddr, is_tcp);
 			return;
 		}
+		
+		// RFC 1035 §4.1.1: respond NOTIMPLEMENTED for any unrecognised opcode
+		if (msgtest->query)
+		{
+			std::unique_ptr<Message> reply(new Message());
+			reply->id = msgtest->id;
+			reply->opcode = msgtest->opcode;
+			reply->query = false;
+			reply->authoritative = false;
+			reply->truncation = false;
+			reply->recursiondesired = msgtest->recursiondesired;
+			reply->recursionavailable = false;
+			reply->rcode = Message::CODENOTIMPLEMENTED;
+			reply->copyEDNS(msgtest.get());
+
+			char response[0x10000];
+			unsigned int response_len = 0;
+			reply->pack(response, sizeof(response), response_len);
+			send_dns_response(s, response, response_len, addr, addrlen, is_tcp);
+		}
 	}
 	catch (const std::exception& e)
 	{
