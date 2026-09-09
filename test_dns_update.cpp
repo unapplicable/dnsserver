@@ -1347,6 +1347,37 @@ TEST_CASE("UpdateProcessor::checkPrerequisites validates name not in use (NONE T
     CHECK(result == Message::CODENOERROR);
 }
 
+TEST_CASE("UpdateProcessor::checkPrerequisites returns YXDOMAIN when name already in use (NONE TYPESTAR)", "[logic][prereq][regression]")
+{
+    // Regression: dhcpd sends NONE TYPESTAR prereq when claiming a lease name that
+    // already has A + DHCID records. Per RFC 2136 sec 3.2.2 the server must fail
+    // with YXDOMAIN so dhcpd treats it as an update/refresh, not a hard error.
+    // Previously (pre-443b6ab) this returned NXDOMAIN, causing an endless
+    // "Unable to add forward map ... NXDOMAIN" renewal loop.
+    t_data zoneData;
+    zoneData.push_back("$ORIGIN s6.eneseimetl.us.");
+    zoneData.push_back("precision.s6.eneseimetl.us. 300 IN A 10.222.1.99");
+    zoneData.push_back("precision.s6.eneseimetl.us. 300 IN DHCID AAEBEIqayTAWc8wY+wvs4ah8vpTJCT/YuA3hsFAsGRZSX3k=");
+    
+    t_zones zones;
+    ZoneFileLoader::load(zoneData, zones);
+    REQUIRE(zones.size() == 1);
+    
+    Message request;
+    RR* prereq = new RR();
+    prereq->name = dns_name_tolower("precision.s6.eneseimetl.us.");
+    prereq->rrclass = RR::CLASSNONE;
+    prereq->type = RR::TYPESTAR;
+    request.an.push_back(prereq);
+    
+    std::string error;
+    Zone* zone = zones[0];
+    Message::RCode result = UpdateProcessor::checkPrerequisites(&request, *zone, error);
+    
+    CHECK(result == Message::CODEYXDOMAIN);
+    CHECK(error == "Prerequisite failed - name is in use");
+}
+
 TEST_CASE("UpdateProcessor::applyUpdates adds new RR", "[logic][update]")
 {
     t_data zoneData;
