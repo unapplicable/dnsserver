@@ -6,6 +6,18 @@ SERVER="127.0.0.1"
 PORT="15357"
 ZONE_FILE="test_quoted_txt.zone"
 
+LONG_P=$(printf 'A%.0s' $(seq 1 392))
+
+# Build the zone file so the long record's p= is guaranteed to match $LONG_P
+cat > "$ZONE_FILE" <<EOF
+\$ORIGIN example.com
+example.com.			IN	A	192.0.2.1
+example.com.			IN	TXT	v=spf1 a mx ~all
+dkim.example.com.			IN	TXT	"v=DKIM1; k=rsa; p=abcdefghij"
+dmarc.example.com.			IN	TXT	"v=DMARC1; p=none; rua=mailto:x@example.com"
+longd.example.com.			IN	TXT	"v=DKIM1; k=rsa; p=$LONG_P"
+EOF
+
 echo "=========================================="
 echo "  DNS Quoted TXT Integration Test"
 echo "=========================================="
@@ -32,8 +44,10 @@ check_txt() {
     local expected=$2
     local desc=$3
     local got
-    got=$(dig @$SERVER -p $PORT TXT "$name" +short +tries=1 +time=2 2>/dev/null | tr -d '\n')
-    if [ "$got" = "\"$expected\"" ]; then
+    got=$(dig @$SERVER -p $PORT TXT "$name" +short +tries=1 +time=2 2>/dev/null | tr -d '"\n ')
+    # normalize both sides: strip quotes and whitespace (long TXT values are
+    # returned as multiple quoted character-strings by dig)
+    if [ "$got" = "$(printf '%s' "$expected" | tr -d '"\n ')" ]; then
         echo "[PASS] $desc"
         PASSED=$((PASSED + 1))
     else
@@ -42,9 +56,11 @@ check_txt() {
     fi
 }
 
+LONG_P=$(printf 'A%.0s' $(seq 1 392))
 check_txt "dkim.example.com."     "v=DKIM1; k=rsa; p=abcdefghij"        "DKIM TXT value with semicolons survives"
 check_txt "dmarc.example.com."    "v=DMARC1; p=none; rua=mailto:x@example.com" "DMARC TXT value with semicolons survives"
 check_txt "example.com."          "v=spf1 a mx ~all"                    "unquoted multi-token SPF TXT still works"
+check_txt "longd.example.com."    "v=DKIM1; k=rsa; p=$LONG_P"           "long (>255 byte) TXT value round-trips over the wire"
 
 echo ""
 echo "=========================================="

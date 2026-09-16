@@ -5,6 +5,7 @@
 #include "zoneFileLoader.h"
 #include "zone.h"
 #include "rr.h"
+#include "rrtxt.h"
 
 // Unit tests for quoted TXT records: semicolons and spaces inside double
 // quotes must survive zone-file parsing (DKIM / DMARC records).
@@ -72,6 +73,32 @@ int main()
 	       "bang inside quotes is data, trailing comment stripped");
 	expect(rdataOf(z, "example.com.") == "v=spf1 a mx ~all",
 	       "unquoted TXT (SPF) still joins tokens with spaces");
+
+	// TXT pack(): values longer than 255 bytes must be split across multiple
+	// character-strings (RFC 1035 3.3.14) so the wire format stays valid.
+	{
+		RRTXT rr;
+		std::string longval = "v=DKIM1; k=rsa; p=";
+		for (int i = 0; i < 392; ++i)
+			longval += 'A';
+		rr.rdata = longval;
+		char buf[1200];
+		unsigned int off = 2; // RR::pack reserves the rdlen at offset-2
+		rr.packContents(buf, sizeof(buf), off);
+		std::string got;
+		unsigned int idx = 2;
+		unsigned int maxChunk = 0;
+		while (idx < off)
+		{
+			unsigned int n = (unsigned char)buf[idx++];
+			if (n > maxChunk)
+				maxChunk = n;
+			got.append(&buf[idx], n);
+			idx += n;
+		}
+		expect(got == longval, "TXT >255 bytes packs as chunked char-strings and round-trips");
+		expect(maxChunk <= 255, "no TXT character-string exceeds 255 bytes");
+	}
 
 	if (failures == 0)
 	{
