@@ -1,0 +1,211 @@
+{
+  "analysis_version": "1.1.0",
+  "requirement_summary": [
+    {
+      "requirement_id": "REQ-1",
+      "summary": "Acl destructor must delete all Zone* pointers stored in its entries vector to prevent memory leaks",
+      "evidence": ["jira", "pr", "acl.cpp", "commit e61cb76"]
+    },
+    {
+      "requirement_id": "REQ-2",
+      "summary": "The std::set mechanism must prevent double-free when the same Zone* appears in multiple ACL entries",
+      "evidence": ["jira", "pr", "acl.cpp", "test_acl_toString"]
+    },
+    {
+      "requirement_id": "REQ-3",
+      "summary": "After deletion, zone pointers in entries should be set to NULL to prevent dangling pointer access",
+      "evidence": ["jira", "pr", "acl.cpp"]
+    },
+    {
+      "requirement_id": "REQ-4",
+      "summary": "The entries vector should be cleared after deletion to ensure clean destructor state",
+      "evidence": ["jira", "pr", "acl.cpp"]
+    },
+    {
+      "requirement_id": "REQ-5",
+      "summary": "The fix must handle NULL zone pointers in entries without crashing",
+      "evidence": ["jira", "pr", "acl.cpp"]
+    },
+    {
+      "requirement_id": "REQ-6",
+      "summary": "findMostSpecificMatch must return the zone with the longest matching prefix, using last-match tie-breaking for equal prefixes",
+      "evidence": ["acl.cpp", "test_acl_longest_match.cpp"]
+    },
+    {
+      "requirement_id": "REQ-7",
+      "summary": "propagateTSIGKey must not overwrite existing TSIG keys on ACL sub-zones",
+      "evidence": ["acl.cpp", "test_acl.cpp"]
+    },
+    {
+      "requirement_id": "REQ-8",
+      "summary": "checkAccess must return the first matching ACL entry (in insertion order) for a client IP",
+      "evidence": ["acl.cpp", "test_acl.cpp"]
+    },
+    {
+      "requirement_id": "REQ-9",
+      "summary": "checkAccess must handle NULL out_zone parameter gracefully without crashing",
+      "evidence": ["acl.cpp"]
+    }
+  ],
+  "change_clusters": [
+    {
+      "cluster_id": "CL-1",
+      "file": "acl.cpp",
+      "line_start": 70,
+      "line_end": 83,
+      "symbol": "Acl::~Acl",
+      "importance": "high",
+      "requirement_ids": ["REQ-1", "REQ-2", "REQ-3", "REQ-4", "REQ-5"],
+      "why_it_matters": "The entire PR centers on this destructor. MUT-1 proved test_acl_toString catches double-free. MUT-2/3 survived — no test detects memory leaks. Need a different double-free angle."
+    },
+    {
+      "cluster_id": "CL-2",
+      "file": "acl.cpp",
+      "line_start": 105,
+      "line_end": 124,
+      "symbol": "Acl::findMostSpecificMatch",
+      "importance": "medium",
+      "requirement_ids": ["REQ-6"],
+      "why_it_matters": "Longest-prefix-match is core split-horizon DNS logic. Tests use distinct prefix lengths (24,28,30) — tie-breaking with equal lengths is untested."
+    },
+    {
+      "cluster_id": "CL-3",
+      "file": "acl.cpp",
+      "line_start": 138,
+      "line_end": 150,
+      "symbol": "Acl::propagateTSIGKey",
+      "importance": "medium",
+      "requirement_ids": ["REQ-7"],
+      "why_it_matters": "TSIG key propagation should preserve existing keys. Test only calls propagateTSIGKey once — overwrite-after-first-propagation path is untested."
+    },
+    {
+      "cluster_id": "CL-4",
+      "file": "acl.cpp",
+      "line_start": 91,
+      "line_end": 103,
+      "symbol": "Acl::checkAccess",
+      "importance": "medium",
+      "requirement_ids": ["REQ-8", "REQ-9"],
+      "why_it_matters": "First-match behavior for overlapping subnets and NULL out_zone safety are untested paths."
+    }
+  ],
+  "mutations": [
+    {
+      "candidate_id": "MUT-6",
+      "cluster_id": "CL-1",
+      "rank": 1,
+      "fingerprint": "acl-dtor-remove-set-insert-7d4f2b1",
+      "family_key": "double-free-protection",
+      "file": "acl.cpp",
+      "line_start": 78,
+      "line_end": 78,
+      "symbol": "Acl::~Acl",
+      "mutation_type": "revert_change",
+      "why_this_change_matters": "Removes `deleted_zones.insert(it->zone)` but keeps the std::set declaration and the `find()` guard. The set is always empty, so `find()` always returns end(), making the condition always true for any non-NULL pointer. When the same Zone* appears in two entries (as in test_acl_toString), the FIRST encounter deletes the pointer and NULLs the entry; the SECOND encounter sees a non-NULL pointer in the OTHER entry, `find()` returns end() (set was never populated), so `delete` is called again on the already-freed pointer — double-free crash. This tests a DIFFERENT failure mode than MUT-1 (which removed the entire set): here the tracking mechanism exists (the set is declared + find is used) but never populated, so a developer might think it works while it silently fails to track anything.",
+      "original_behavior": "After deleting each Zone*, the pointer is inserted into `deleted_zones`, so subsequent encounters of the same pointer find it in the set and skip deletion, preventing double-free.",
+      "mutated_behavior": "The `deleted_zones.insert(it->zone)` call is removed. The set is always empty, so every non-NULL Zone* is unconditionally deleted on every encounter. When the same pointer appears in two entries, the second `delete` is a double-free.",
+      "expected_test_signal": "SIGSEGV or SIGABRT from test_acl_toString (same zone in two entries causes double-free crash). Should be killed, confirming test_acl_toString also catches this variant.",
+      "suggested_test_scope": ["test_acl.cpp::test_acl_toString"],
+      "equivalent_mutant_risk": "low",
+      "compile_confidence": 0.99,
+      "semantic_value": 0.93,
+      "patch_unified_diff": "--- a/acl.cpp\n+++ b/acl.cpp\n@@ -75,7 +75,6 @@ Acl::~Acl()\n \t\tif (it->zone && deleted_zones.find(it->zone) == deleted_zones.end())\n \t\t{\n \t\t\tdelete it->zone;\n-\t\t\tdeleted_zones.insert(it->zone);\n \t\t\tit->zone = NULL;\n \t\t}\n \t}\n"
+    },
+    {
+      "candidate_id": "MUT-7",
+      "cluster_id": "CL-2",
+      "rank": 2,
+      "fingerprint": "acl-findMostSpecificMatch-change-ge-gt-3a8e9c4",
+      "family_key": "most-specific-match-logic",
+      "file": "acl.cpp",
+      "line_start": 115,
+      "line_end": 115,
+      "symbol": "Acl::findMostSpecificMatch",
+      "mutation_type": "boundary_shift",
+      "why_this_change_matters": "Changes `>=` to `>` in the most-specific-match comparison. The current logic uses `>=`, meaning when two ACL entries have the same prefix length, the LAST matching entry wins (it updates `best_match` because `current_mask >= best_mask` is true). With `>`, the FIRST matching entry wins for equal prefix lengths. All existing tests use DISTINCT prefix lengths (24, 28, 30) so this change is invisible. A test with two entries sharing the same prefix length (e.g., two /24 subnets) would expose the difference. This mutation reveals a gap: no test verifies tie-breaking behavior for equal-length prefixes.",
+      "original_behavior": "With `>=`: for equal prefix lengths, the last matching ACL entry is returned (later entries override earlier ones at the same specificity).",
+      "mutated_behavior": "With `>`: for equal prefix lengths, the first matching ACL entry is returned (earlier entries are preserved, later ones are ignored).",
+      "expected_test_signal": "All existing tests pass because they use distinct prefix lengths. New test with equal-length overlapping subnets would detect the difference.",
+      "suggested_test_scope": ["test_acl_longest_match.cpp", "new test: two ACL entries with same /24 prefix but different zones, verify which zone is returned for a matching IP"],
+      "equivalent_mutant_risk": "low",
+      "compile_confidence": 0.99,
+      "semantic_value": 0.88,
+      "patch_unified_diff": "--- a/acl.cpp\n+++ b/acl.cpp\n@@ -112,7 +112,7 @@ Zone* Acl::findMostSpecificMatch(unsigned long client_ip) const\n \t\tif (it->subnet.match(client_ip))\n \t\t{\n \t\t\tunsigned long current_mask = ntohl(it->subnet.getMask());\n-\t\t\tif (current_mask >= best_mask)\n+\t\t\tif (current_mask > best_mask)\n \t\t\t{\n \t\t\t\tbest_mask = current_mask;\n \t\t\t\tbest_match = it->zone;\n"
+    },
+    {
+      "candidate_id": "MUT-8",
+      "cluster_id": "CL-3",
+      "rank": 3,
+      "fingerprint": "acl-propagateTSIGKey-remove-overwrite-guard-6b1d7e2",
+      "family_key": "tsig-propagation-logic",
+      "file": "acl.cpp",
+      "line_start": 145,
+      "line_end": 145,
+      "symbol": "Acl::propagateTSIGKey",
+      "mutation_type": "guard_inversion",
+      "why_this_change_matters": "Removes the `!it->zone->tsig_key` guard that prevents overwriting existing TSIG keys. Without this guard, calling propagateTSIGKey on a zone that already has a TSIG key will: (1) overwrite the existing key pointer with a new allocation (memory leak of the old key), and (2) change the key unexpectedly. The test test_acl_tsig_propagation only calls propagateTSIGKey ONCE on zones that have no existing key, so the guard is never exercised. This mutation survives, revealing a gap: no test verifies that existing TSIG keys are preserved on re-propagation.",
+      "original_behavior": "propagateTSIGKey only assigns a new TSIG::Key if the zone's tsig_key is NULL, preserving existing keys.",
+      "mutated_behavior": "propagateTSIGKey unconditionally overwrites it->zone->tsig_key with a new copy, leaking the previous key (if any) and potentially changing the key unexpectedly.",
+      "expected_test_signal": "test_acl_tsig_propagation passes because it only propagates once onto zones with no existing key. No test calls propagateTSIGKey twice on the same Acl, so the overwrite path is untested.",
+      "suggested_test_scope": ["test_acl.cpp::test_acl_tsig_propagation", "new test: propagate TSIG key, change key, propagate again, verify the first key is preserved"],
+      "equivalent_mutant_risk": "low",
+      "compile_confidence": 0.99,
+      "semantic_value": 0.85,
+      "patch_unified_diff": "--- a/acl.cpp\n+++ b/acl.cpp\n@@ -142,7 +142,7 @@ void Acl::propagateTSIGKey(const TSIG::Key* key)\n \t\n \tfor (vector<AclEntry>::iterator it = entries.begin(); it != entries.end(); ++it)\n \t{\n-\t\tif (it->zone && !it->zone->tsig_key)\n+\t\tif (it->zone)\n \t\t{\n \t\t\tit->zone->tsig_key = new TSIG::Key(*key);\n \t\t}\n"
+    },
+    {
+      "candidate_id": "MUT-9",
+      "cluster_id": "CL-4",
+      "rank": 4,
+      "fingerprint": "acl-checkAccess-reverse-iteration-5e0f8c3",
+      "family_key": "first-match-logic",
+      "file": "acl.cpp",
+      "line_start": 93,
+      "line_end": 93,
+      "symbol": "Acl::checkAccess",
+      "mutation_type": "ordering_change",
+      "why_this_change_matters": "Reverses the iteration direction in checkAccess from forward (first-match wins) to backward (last-match wins). For non-overlapping subnets — like the test's 192.168.1.0/24 and 10.0.0.0/8 — the same IP can never match both, so the iteration direction doesn't change results. However, for overlapping subnets (e.g., 10.0.0.0/8 and 10.1.0.0/16 where a single IP could match both), the order determines which zone is returned. No existing test exercises overlapping subnets with checkAccess (findMostSpecificMatch is what's tested for overlaps). This reveals a gap: overlapping-subnet behavior in checkAccess is untested.",
+      "original_behavior": "checkAccess iterates forward (begin → end) and returns the FIRST matching entry. For overlapping subnets, the first-added subnet wins.",
+      "mutated_behavior": "checkAccess iterates backward (rbegin → rend) and returns the LAST matching entry (the one added most recently). For overlapping subnets, the last-added subnet wins.",
+      "expected_test_signal": "All existing tests pass because they use non-overlapping subnets (192.168.1.0/24 vs 10.0.0.0/8). A test with overlapping subnets would detect the difference.",
+      "suggested_test_scope": ["test_acl.cpp", "new test: add two entries with overlapping subnets (e.g., 10.0.0.0/8 and 10.0.0.0/16) with different zones, verify first-added zone is returned"],
+      "equivalent_mutant_risk": "low",
+      "compile_confidence": 0.95,
+      "semantic_value": 0.82,
+      "patch_unified_diff": "--- a/acl.cpp\n+++ b/acl.cpp\n@@ -91,7 +91,7 @@ void Acl::addSubnet(const string& subnet_str, Zone* zone)\n \n bool Acl::checkAccess(unsigned long client_ip, Zone** out_zone) const\n {\n-\tfor (vector<AclEntry>::const_iterator it = entries.begin(); it != entries.end(); ++it)\n+\tfor (vector<AclEntry>::const_reverse_iterator it = entries.rbegin(); it != entries.rend(); ++it)\n \t{\n \t\tif (it->subnet.match(client_ip))\n \t\t{\n"
+    },
+    {
+      "candidate_id": "MUT-10",
+      "cluster_id": "CL-4",
+      "rank": 5,
+      "fingerprint": "acl-checkAccess-remove-outzone-nullcheck-9f2d4a6",
+      "family_key": "null-parameter-safety",
+      "file": "acl.cpp",
+      "line_start": 97,
+      "line_end": 98,
+      "symbol": "Acl::checkAccess",
+      "mutation_type": "guard_inversion",
+      "why_this_change_matters": "Removes the `if (out_zone)` guard that prevents null-pointer dereference when checkAccess is called with a NULL out_zone parameter. The presence of this guard indicates the API DESIGN allows callers to pass NULL when they only want the boolean result (access granted/denied) without caring which zone matched. Removing it would crash if any caller passes NULL. All tests pass a valid pointer (`&matched_zone`), so they wouldn't catch this. This reveals a gap: no test calls checkAccess with NULL out_zone to verify the safety guard works.",
+      "original_behavior": "When out_zone is NULL, the function skips the `*out_zone = it->zone` assignment and returns the boolean result safely.",
+      "mutated_behavior": "The null check is removed; `*out_zone = it->zone` executes unconditionally. If out_zone is NULL, this writes to address NULL, causing a segfault.",
+      "expected_test_signal": "All existing tests pass because they always pass &matched_zone (a valid stack pointer). No test exercises NULL out_zone. A new test calling `acl.checkAccess(ip, NULL)` would crash, revealing the guard is needed.",
+      "suggested_test_scope": ["test_acl.cpp", "new test: call checkAccess with NULL out_zone, verify it returns true/false without crashing"],
+      "equivalent_mutant_risk": "low",
+      "compile_confidence": 0.99,
+      "semantic_value": 0.78,
+      "patch_unified_diff": "--- a/acl.cpp\n+++ b/acl.cpp\n@@ -94,8 +94,7 @@ bool Acl::checkAccess(unsigned long client_ip, Zone** out_zone) const\n \t{\n \t\tif (it->subnet.match(client_ip))\n \t\t{\n-\t\t\tif (out_zone)\n-\t\t\t\t*out_zone = it->zone;\n+\t\t\t*out_zone = it->zone;\n \t\t\treturn true;\n \t\t}\n \t}\n"
+    }
+  ],
+  "planner_notes": [
+    "Round 1 produced 1 killed (MUT-1), 2 real survivors (MUT-2, MUT-3), and 2 equivalent/noop mutants (MUT-4, MUT-5).",
+    "CL-1 still has survivors (memory leaks from MUT-2/MUT-3). MUT-6 explores a new angle in the double-free-protection family (remove insert but keep set+find).",
+    "New clusters CL-2 (findMostSpecificMatch), CL-3 (propagateTSIGKey), and CL-4 (checkAccess) were introduced to probe untested behavioral paths beyond the destructor.",
+    "MUT-7 (>= → > in findMostSpecificMatch) targets tie-breaking logic — tests all use distinct prefix lengths so this is untested.",
+    "MUT-8 (remove !tsig_key guard) targets overwrite-on-repropagation — test only propagates once.",
+    "MUT-9 (reverse iteration in checkAccess) targets first-match vs last-match for overlapping subnets — tests use disjoint subnet ranges.",
+    "MUT-10 (remove out_zone null check) targets NULL parameter safety — no test calls checkAccess with NULL out_zone.",
+    "All 5 new mutations compile successfully. MUT-9 has slightly lower compile confidence (0.95) due to iterator type change; others are 0.99.",
+    "Total compile failures across both rounds: 0/10 = 0%, well under the 30% threshold. No need to reduce aggressiveness.",
+    "Excluded fingerprints already attempted: acl-dtor-remove-doublefree-set-f5581a2, acl-dtor-invert-doublefree-guard-4b0e9c1, acl-dtor-remove-delete-zone-8c3d7f4, acl-dtor-remove-null-guard-2e6b1a8, acl-dtor-remove-entries-clear-1f3c9d0. Exhausted families: double-free-protection (2 tried, 1 killed, 1 survived), destructor-deletion (1 tried, 0 killed, 1 survived), null-pointer-safety (1 tried, 0 killed, 1 survived — equivalent), destructor-state (1 tried, 0 killed, 1 survived — equivalent)."
+  ]
+}

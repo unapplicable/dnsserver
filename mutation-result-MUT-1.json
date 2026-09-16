@@ -1,0 +1,59 @@
+{
+  "candidate_id": "MUT-1",
+  "fingerprint": "acl-dtor-remove-doublefree-set-f5581a2",
+  "apply_result": "applied",
+  "compile_result": "passed",
+  "test_result": "killed",
+  "equivalent_suspect": false,
+  "outcome_confidence": 1.0,
+  "commands": [
+    {
+      "kind": "build",
+      "command": "make -j$(nproc) bin/test_acl",
+      "exit_code": 0,
+      "duration_seconds": 8.2
+    },
+    {
+      "kind": "build",
+      "command": "make -j$(nproc) bin/test_acl_longest_match",
+      "exit_code": 0,
+      "duration_seconds": 8.1
+    },
+    {
+      "kind": "build",
+      "command": "make -j$(nproc) bin/test_acl_query",
+      "exit_code": 0,
+      "duration_seconds": 7.9
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl",
+      "exit_code": 139,
+      "duration_seconds": 0.5
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl_longest_match",
+      "exit_code": 0,
+      "duration_seconds": 0.3
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl_query",
+      "exit_code": 0,
+      "duration_seconds": 0.2
+    }
+  ],
+  "failing_tests": [
+    {
+      "name": "test_acl (destructor crash during teardown after ACL toString test)",
+      "signal": "other"
+    }
+  ],
+  "artifacts": {
+    "mutation_diff_path": "ac://internal/mutation-MUT-1",
+    "build_log_path": "ac://internal/build-log",
+    "test_log_path": "ac://internal/test-log"
+  },
+  "summary": "Mutation MUT-1: Removed std::set<Zone*> double-free guard in ~Acl(). All 3 test executables compiled successfully. test_acl_longest_match and test_acl_query passed. test_acl crashed with SIGSEGV (exit code 139) after 'ACL toString: PASSED' — destructor double-freed a Zone* pointer that was shared across multiple ACL entries. Mutation is KILLED."
+}

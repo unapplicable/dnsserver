@@ -1,0 +1,10 @@
+$ORIGIN example.com.
+@ 3600 IN SOA ns1.example.com. admin.example.com. 2024012501 3600 1800 604800 86400
+@ 3600 IN NS ns1.example.com.
+ns1 3600 IN A 192.0.2.1
+
+; Regular TXT record for comparison
+test 60 IN TXT "static record"
+
+; Dynamic record for ACME challenge
+$DYNAMIC _acme-challenge.example.com. /tmp/acme_challenge.txt

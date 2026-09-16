@@ -1,0 +1,115 @@
+{
+  "executions": [
+    {
+      "candidate_id": "MUT-1",
+      "fingerprint": "acl-dtor-remove-doublefree-set-f5581a2",
+      "cluster_id": "CL-1",
+      "killed": true,
+      "compile_success": true,
+      "family": "double-free-protection",
+      "failing_tests": ["test_acl (SIGSEGV in ~Acl() destructor during teardown)"],
+      "observations": "Crashed with SIGSEGV (exit code 139) when double-free occurred on shared Zone* pointer in test_acl_toString"
+    },
+    {
+      "candidate_id": "MUT-2",
+      "fingerprint": "acl-dtor-invert-doublefree-guard-4b0e9c1",
+      "cluster_id": "CL-1",
+      "killed": false,
+      "compile_success": true,
+      "family": "double-free-protection",
+      "surviving_tests": ["test_acl", "test_acl_longest_match", "test_acl_query"],
+      "observations": "Inverted guard from == to != means condition is always false on empty set - no zones are deleted, causing memory leak. No test detects the leak."
+    },
+    {
+      "candidate_id": "MUT-3",
+      "fingerprint": "acl-dtor-remove-delete-zone-8c3d7f4",
+      "cluster_id": "CL-1",
+      "killed": false,
+      "compile_success": true,
+      "family": "destructor-deletion",
+      "surviving_tests": ["test_acl", "test_acl_longest_match", "test_acl_query"],
+      "observations": "Removed delete it->zone; entire block. Zone objects leaked but no test detects memory leaks."
+    },
+    {
+      "candidate_id": "MUT-4",
+      "fingerprint": "acl-dtor-remove-null-guard-2e6b1a8",
+      "cluster_id": "CL-1",
+      "killed": false,
+      "compile_success": true,
+      "family": "null-pointer-safety",
+      "surviving_tests": ["test_acl", "test_acl_longest_match", "test_acl_query"],
+      "observations": "Removed null guard. delete NULL is safe no-op. std::set handles NULL keys. Effectively equivalent."
+    },
+    {
+      "candidate_id": "MUT-5",
+      "fingerprint": "acl-dtor-remove-entries-clear-1f3c9d0",
+      "cluster_id": "CL-1",
+      "killed": false,
+      "compile_success": true,
+      "family": "destructor-state",
+      "surviving_tests": ["test_acl", "test_acl_longest_match", "test_acl_query"],
+      "observations": "Removed entries.clear(). Vector auto-destructs when Acl goes out of scope, so this is effectively equivalent."
+    },
+    {
+      "candidate_id": "MUT-6",
+      "fingerprint": "acl-dtor-remove-set-insert-only",
+      "cluster_id": "CL-1",
+      "killed": true,
+      "compile_success": true,
+      "family": "double-free-protection",
+      "failing_tests": ["test_acl (SIGSEGV in ~Acl() destructor during teardown)"],
+      "observations": "Removed deleted_zones.insert() - set checked but never populated. Double-free on shared Zone* pointer."
+    },
+    {
+      "candidate_id": "MUT-7",
+      "fingerprint": "acl-findmostspecific-gte-gt",
+      "cluster_id": "CL-1",
+      "killed": false,
+      "compile_success": true,
+      "family": "most-specific-match-logic",
+      "surviving_tests": ["test_acl", "test_acl_longest_match", "test_acl_query"],
+      "observations": "Changed >= to > in findMostSpecificMatch tie-breaking. Tests only use distinct prefix lengths, so no observable difference."
+    },
+    {
+      "candidate_id": "MUT-8",
+      "fingerprint": "acl-tsig-propagation-remove-guard",
+      "cluster_id": "CL-1",
+      "killed": false,
+      "compile_success": true,
+      "family": "tsig-propagation-logic",
+      "surviving_tests": ["test_acl", "test_acl_longest_match", "test_acl_query"],
+      "observations": "Removed !it->zone->tsig_key guard. Repeated propagateTSIGKey calls would overwrite keys without cleanup (memory leak). Test only calls once."
+    },
+    {
+      "candidate_id": "MUT-9",
+      "fingerprint": "acl-checkaccess-reverse-iteration",
+      "cluster_id": "CL-1",
+      "killed": false,
+      "compile_success": true,
+      "family": "first-match-logic",
+      "surviving_tests": ["test_acl", "test_acl_longest_match", "test_acl_query"],
+      "observations": "Reversed iteration in checkAccess - first-match becomes last-match. Tests use disjoint subnets only."
+    },
+    {
+      "candidate_id": "MUT-10",
+      "fingerprint": "acl-checkaccess-remove-null-guard",
+      "cluster_id": "CL-1",
+      "killed": false,
+      "compile_success": true,
+      "family": "null-parameter-safety",
+      "surviving_tests": ["test_acl", "test_acl_longest_match", "test_acl_query"],
+      "observations": "Removed if(out_zone) null guard. NULL dereference would crash. Tests always pass valid pointer."
+    }
+  ],
+  "summary": {
+    "total_mutations": 10,
+    "killed": 2,
+    "survived": 8,
+    "compile_failures": 0,
+    "real_survivors": 6,
+    "equivalent_or_noop": 2,
+    "killed_mutations": ["MUT-1", "MUT-6"],
+    "real_survivor_ids": ["MUT-2", "MUT-3", "MUT-7", "MUT-8", "MUT-9", "MUT-10"],
+    "equivalent_mutations": ["MUT-4", "MUT-5"]
+  }
+}

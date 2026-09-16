@@ -9,13 +9,39 @@
 
 std::string ZoneFileLoader::stripComments(const std::string& line)
 {
-	std::string result = line;
-	// Strip both ! and ; style comments
-	std::string::size_type cmtpos = result.find(';');
-	if (cmtpos == std::string::npos)
-		cmtpos = result.find('!');
-	if (cmtpos != std::string::npos)
-		result.erase(cmtpos);
+	// Strip both ! and ; style comments, but only when they appear OUTSIDE a
+	// double-quoted string. Quoted TXT values routinely contain semicolons
+	// (e.g. DKIM "v=DKIM1; k=rsa; p=..." or DMARC records), so a naive
+	// find(';') would silently truncate them.
+	std::string result;
+	result.reserve(line.size());
+	bool in_quotes = false;
+	for (std::string::size_type i = 0; i < line.size(); ++i)
+	{
+		char c = line[i];
+		if (in_quotes)
+		{
+			result += c;
+			if (c == '\\' && i + 1 < line.size())
+			{
+				result += line[i + 1];
+				++i;
+				continue;
+			}
+			if (c == '"')
+				in_quotes = false;
+			continue;
+		}
+		if (c == '"')
+		{
+			in_quotes = true;
+			result += c;
+			continue;
+		}
+		if (c == ';' || c == '!')
+			break;
+		result += c;
+	}
 	return result;
 }
 
@@ -23,15 +49,47 @@ std::vector<std::string> ZoneFileLoader::tokenize(const std::string& line)
 {
 	std::vector<std::string> tokens;
 	std::string remaining = line;
-	
+
 	while (remaining.length() != 0)
 	{
+		if (remaining[0] == '"')
+		{
+			// A quoted string is a single token: consume up to the closing
+			// quote (spanning whitespace) and strip the quotes, honouring
+			// \" and \\ escapes. This keeps semicolons/spaces intact for TXT.
+			std::string tok;
+			std::string::size_type k = 1;
+			const std::string::size_type n = remaining.length();
+			while (k < n)
+			{
+				if (remaining[k] == '\\' && k + 1 < n)
+				{
+					tok += remaining[k + 1];
+					k += 2;
+					continue;
+				}
+				if (remaining[k] == '"')
+				{
+					++k;
+					break;
+				}
+				tok += remaining[k];
+				++k;
+			}
+			tokens.push_back(tok);
+			std::string::size_type nextpos = remaining.find_first_not_of(" \t", k);
+			remaining.erase(0, nextpos);
+			continue;
+		}
+
 		std::string::size_type seppos = remaining.find_first_of(" \t");
 		tokens.push_back(remaining.substr(0, seppos));
+		if (seppos == std::string::npos)
+			break;
 		std::string::size_type nextpos = remaining.find_first_not_of(" \t", seppos);
 		remaining.erase(0, nextpos);
 	}
-	
+
 	return tokens;
 }
 

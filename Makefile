@@ -84,6 +84,12 @@ TEST_ZONE_ROUNDTRIP_SOURCES = test_zone_roundtrip.cpp message.cpp rr.cpp acl.cpp
                               rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp rrdynamic.cpp \
                               tsig.cpp update_processor.cpp query_processor.cpp
 
+TEST_QUOTED_TXT_SOURCES = test_quoted_txt.cpp message.cpp rr.cpp acl.cpp zoneFileLoader.cpp \
+                          zoneFileSaver.cpp zone.cpp zone_authority.cpp \
+                          rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
+                          rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrtsig.cpp rrdynamic.cpp \
+                          tsig.cpp update_processor.cpp query_processor.cpp
+
 TEST_TSIG_HMAC_SOURCES = test_tsig_hmac.cpp tsig.cpp rrtsig.cpp rr.cpp message.cpp \
                         rra.cpp rraaaa.cpp rrcert.cpp rrcname.cpp rrmx.cpp \
                         rrns.cpp rrptr.cpp rrsoa.cpp rrtxt.cpp rrdhcid.cpp rropt.cpp rrdynamic.cpp
@@ -119,6 +125,7 @@ TEST_TSIG_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_tsig_%.o,$(TEST_TSIG_SOUR
 TEST_ACL_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_acl_%.o,$(TEST_ACL_SOURCES))
 TEST_RR_ROUNDTRIP_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_rr_rt_%.o,$(TEST_RR_ROUNDTRIP_SOURCES))
 TEST_ZONE_ROUNDTRIP_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_zone_rt_%.o,$(TEST_ZONE_ROUNDTRIP_SOURCES))
+TEST_QUOTED_TXT_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_quoted_%.o,$(TEST_QUOTED_TXT_SOURCES))
 TEST_TSIG_HMAC_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_tsig_hmac_%.o,$(TEST_TSIG_HMAC_SOURCES))
 TEST_ZONE_MATCHING_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_zone_match_%.o,$(TEST_ZONE_MATCHING_SOURCES))
 TEST_ACL_QUERY_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/test_acl_query_%.o,$(TEST_ACL_QUERY_SOURCES))
@@ -135,6 +142,7 @@ TEST_TSIG_BIN = $(BIN_DIR)/test_tsig
 TEST_ACL_BIN = $(BIN_DIR)/test_acl
 TEST_RR_ROUNDTRIP_BIN = $(BIN_DIR)/test_rr_roundtrip
 TEST_ZONE_ROUNDTRIP_BIN = $(BIN_DIR)/test_zone_roundtrip
+TEST_QUOTED_TXT_BIN = $(BIN_DIR)/test_quoted_txt
 TEST_TSIG_HMAC_BIN = $(BIN_DIR)/test_tsig_hmac
 TEST_ZONE_MATCHING_BIN = $(BIN_DIR)/test_zone_matching
 TEST_ACL_QUERY_BIN = $(BIN_DIR)/test_acl_query
@@ -184,7 +192,7 @@ $(SERVER_BIN): $(SERVER_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(SERVER_OBJECTS) $(LDFLAGS)
 
 # Build tests
-test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN) $(TEST_EDNS_BIN) $(TEST_TSIG_BIN) $(TEST_ACL_BIN) $(TEST_RR_ROUNDTRIP_BIN) $(TEST_ZONE_ROUNDTRIP_BIN) $(TEST_TSIG_HMAC_BIN) $(TEST_ZONE_MATCHING_BIN) $(TEST_ACL_QUERY_BIN) $(TEST_ACL_UNAUTHORIZED_BIN) $(TEST_ACL_LONGEST_MATCH_BIN)
+test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN) $(TEST_EDNS_BIN) $(TEST_TSIG_BIN) $(TEST_ACL_BIN) $(TEST_RR_ROUNDTRIP_BIN) $(TEST_ZONE_ROUNDTRIP_BIN) $(TEST_TSIG_HMAC_BIN) $(TEST_ZONE_MATCHING_BIN) $(TEST_ACL_QUERY_BIN) $(TEST_ACL_UNAUTHORIZED_BIN) $(TEST_ACL_LONGEST_MATCH_BIN) $(TEST_QUOTED_TXT_BIN)
 	@echo "Running UPDATE unit tests..."
 	$(TEST_UPDATE_BIN)
 	@echo "Running QueryProcessor unit tests..."
@@ -211,6 +219,8 @@ test: $(TEST_UPDATE_BIN) $(TEST_QUERY_BIN) $(TEST_RR_BIN) $(TEST_EDNS_BIN) $(TES
 	$(TEST_ACL_UNAUTHORIZED_BIN)
 	@echo "Running ACL longest match tests..."
 	$(TEST_ACL_LONGEST_MATCH_BIN)
+	@echo "Running quoted TXT tests..."
+	$(TEST_QUOTED_TXT_BIN)
 
 $(TEST_UPDATE_BIN): $(TEST_UPDATE_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_UPDATE_OBJECTS) $(TEST_LDFLAGS)
@@ -235,6 +245,9 @@ $(TEST_RR_ROUNDTRIP_BIN): $(TEST_RR_ROUNDTRIP_OBJECTS) | $(BIN_DIR)
 
 $(TEST_ZONE_ROUNDTRIP_BIN): $(TEST_ZONE_ROUNDTRIP_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_ZONE_ROUNDTRIP_OBJECTS) $(TEST_LDFLAGS)
+
+$(TEST_QUOTED_TXT_BIN): $(TEST_QUOTED_TXT_OBJECTS) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $(TEST_QUOTED_TXT_OBJECTS) $(TEST_LDFLAGS)
 
 $(TEST_TSIG_HMAC_BIN): $(TEST_TSIG_HMAC_OBJECTS) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_TSIG_HMAC_OBJECTS) -lpthread -lssl -lcrypto
@@ -279,6 +292,9 @@ $(BUILD_DIR)/test_rr_rt_%.o: %.cpp | $(BUILD_DIR)
 $(BUILD_DIR)/test_zone_rt_%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/test_quoted_%.o: %.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 $(BUILD_DIR)/test_tsig_hmac_%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
@@ -297,7 +313,7 @@ $(BUILD_DIR)/test_acl_longest_%.o: %.cpp | $(BUILD_DIR)
 # Integration tests
 test-integration: $(SERVER_BIN)
 	@echo "Running integration tests..."
-	@chmod +x test_update.sh test_wildcard_simple.sh test_tsig.sh test_dynamic.sh test_autosave_daemon.sh test_sighup.sh test_edns_integration.sh
+	@chmod +x test_update.sh test_wildcard_simple.sh test_tsig.sh test_dynamic.sh test_autosave_daemon.sh test_sighup.sh test_edns_integration.sh test_quoted_txt.sh
 	./test_update.sh
 	./test_wildcard_simple.sh
 	./test_tsig.sh
@@ -305,6 +321,7 @@ test-integration: $(SERVER_BIN)
 	./test_autosave_daemon.sh
 	./test_sighup.sh
 	./test_edns_integration.sh
+	./test_quoted_txt.sh
 
 # Full test suite
 test-all: test test-integration

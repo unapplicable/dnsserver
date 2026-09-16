@@ -1,0 +1,47 @@
+{
+  "candidate_id": "MUT-6",
+  "fingerprint": "acl-dtor-remove-set-insert-only",
+  "apply_result": "applied",
+  "compile_result": "passed",
+  "test_result": "killed",
+  "equivalent_suspect": false,
+  "outcome_confidence": 1.0,
+  "commands": [
+    {
+      "kind": "build",
+      "command": "make -j$(nproc) bin/test_acl bin/test_acl_longest_match bin/test_acl_query",
+      "exit_code": 0,
+      "duration_seconds": 8.0
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl",
+      "exit_code": 139,
+      "duration_seconds": 0.5
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl_longest_match",
+      "exit_code": 0,
+      "duration_seconds": 0.3
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl_query",
+      "exit_code": 0,
+      "duration_seconds": 0.3
+    }
+  ],
+  "failing_tests": [
+    {
+      "name": "Acl::~Acl() double-free during cleanup in test_acl",
+      "signal": "other"
+    }
+  ],
+  "artifacts": {
+    "mutation_diff_path": "mutation-MUT-6.diff",
+    "build_log_path": "",
+    "test_log_path": ""
+  },
+  "summary": "Removed `deleted_zones.insert(it->zone);` from Acl::~Acl(). The `deleted_zones` set is declared and checked with `find()`, but never populated. If the same Zone* pointer appears in multiple AclEntry entries (e.g., two subnets sharing one zone), the first delete succeeds, the second encounters the same pointer but find() returns end() (set is empty), causing a double-free. test_acl passed all 7 individual assertions but then crashed with SIGSEGV (exit code 139) during Acl destructor cleanup, confirming the double-free. test_acl_longest_match and test_acl_query passed (they don't set up shared-Zone* scenarios that trigger the bug). The mutation is clearly killed and not equivalent."
+}

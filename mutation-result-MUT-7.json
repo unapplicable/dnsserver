@@ -1,0 +1,42 @@
+{
+  "candidate_id": "MUT-7",
+  "fingerprint": "acl-findmostspecific-gte-gt",
+  "apply_result": "applied",
+  "compile_result": "passed",
+  "test_result": "survived",
+  "equivalent_suspect": false,
+  "outcome_confidence": 1.0,
+  "commands": [
+    {
+      "kind": "build",
+      "command": "make -j$(nproc) bin/test_acl bin/test_acl_longest_match bin/test_acl_query",
+      "exit_code": 0,
+      "duration_seconds": 1.5
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl",
+      "exit_code": 0,
+      "duration_seconds": 0.1
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl_longest_match",
+      "exit_code": 0,
+      "duration_seconds": 0.1
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl_query",
+      "exit_code": 0,
+      "duration_seconds": 0.1
+    }
+  ],
+  "failing_tests": [],
+  "artifacts": {
+    "mutation_diff_path": "acl.cpp",
+    "build_log_path": "",
+    "test_log_path": ""
+  },
+  "summary": "Mutation changed >= to > in findMostSpecificMatch tie-breaking (line 115). All three test binaries compiled and ran successfully with exit code 0. No tests failed. The mutation alters tie-breaking behavior (last-match vs first-match for equal prefix lengths), but no existing test exercises entries with equal prefix lengths, so the behavioral change is undetected. The mutation survived."
+}

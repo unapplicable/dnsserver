@@ -114,7 +114,9 @@ rm -f $CHALLENGE_FILE
 test_query "_acme-challenge.example.com" "" "File removed - empty response"
 
 # Test 8: Static TXT records still work
-expected="\"\\\"static record\\\"\""
+# Note: quote characters are stripped (BIND-compatible); dig displays the
+# stored value wrapped in quotes, so the expected literal is "static record".
+expected="\"static record\""
 test_query "test.example.com" "$expected" "Static TXT record unaffected"
 
 # Test 9: Empty file

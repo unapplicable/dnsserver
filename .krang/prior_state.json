@@ -1,0 +1,50 @@
+{
+  "original_file_hashes": {
+    "acl.cpp": "dc9132ba0a5e593a3fdaf20e059f7f6"
+  },
+  "already_applied_fingerprints": [
+    "acl-dtor-remove-doublefree-set-f5581a2",
+    "acl-dtor-invert-doublefree-guard-4b0e9c1",
+    "acl-dtor-remove-delete-zone-8c3d7f4",
+    "acl-dtor-remove-null-guard-2e6b1a8",
+    "acl-dtor-remove-entries-clear-1f3c9d0"
+  ],
+  "families_exhausted": {
+    "double-free-protection": {
+      "mutations_tried": 2,
+      "mutations_killed": 1,
+      "mutations_survived": 1,
+      "last_result": "survived"
+    },
+    "destructor-deletion": {
+      "mutations_tried": 1,
+      "mutations_killed": 0,
+      "mutations_survived": 1,
+      "last_result": "survived"
+    },
+    "null-pointer-safety": {
+      "mutations_tried": 1,
+      "mutations_killed": 0,
+      "mutations_survived": 1,
+      "last_result": "survived"
+    },
+    "destructor-state": {
+      "mutations_tried": 1,
+      "mutations_killed": 0,
+      "mutations_survived": 1,
+      "last_result": "survived"
+    }
+  },
+  "survivors_to_follow_up": [
+    {
+      "candidate_id": "MUT-2",
+      "family": "double-free-protection",
+      "reason": "Inverted guard creates memory leak but tests pass"
+    },
+    {
+      "candidate_id": "MUT-3",
+      "family": "destructor-deletion",
+      "reason": "Missing delete creates memory leak but tests pass"
+    }
+  ]
+}

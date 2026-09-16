@@ -1,0 +1,42 @@
+{
+  "candidate_id": "MUT-9",
+  "fingerprint": "acl-checkaccess-reverse-iteration",
+  "apply_result": "applied",
+  "compile_result": "passed",
+  "test_result": "survived",
+  "equivalent_suspect": false,
+  "outcome_confidence": 0.95,
+  "commands": [
+    {
+      "kind": "build",
+      "command": "make -j$(nproc) bin/test_acl bin/test_acl_longest_match bin/test_acl_query",
+      "exit_code": 0,
+      "duration_seconds": 4.2
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl",
+      "exit_code": 0,
+      "duration_seconds": 1.1
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl_longest_match",
+      "exit_code": 0,
+      "duration_seconds": 0.8
+    },
+    {
+      "kind": "test",
+      "command": "./bin/test_acl_query",
+      "exit_code": 0,
+      "duration_seconds": 0.6
+    }
+  ],
+  "failing_tests": [],
+  "artifacts": {
+    "mutation_diff_path": "/vokk/home/lauri/dev/dnsserver/git.dnsserver/acl.cpp",
+    "build_log_path": "/vokk/home/lauri/dev/dnsserver/git.dnsserver/build/test_acl_acl.o",
+    "test_log_path": ""
+  },
+  "summary": "Mutation MUT-9: Reversed iteration direction in Acl::checkAccess from forward (begin→end) to backward (rbegin→rend). This changes first-match semantics to last-match semantics for overlapping subnets. All 3 test binaries (test_acl, test_acl_longest_match, test_acl_query) pass because they only use non-overlapping subnets where iteration direction is irrelevant. The mutation survives due to a test coverage gap: no existing test exercises checkAccess with overlapping subnets where first-match vs last-match would produce different results. The separate findMostSpecificMatch method (which correctly handles overlaps via longest-prefix matching) is not affected by this mutation."
+}
